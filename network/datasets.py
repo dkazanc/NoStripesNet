@@ -103,3 +103,10 @@ class WindowDataset(BaseDataset):
             shifts[i] = self.getWindows(shifts[i])
 
         return clean, *shifts
+
+    def getFullSinograms(self, item):
+        return super().__getitem__(item)
+
+    @staticmethod
+    def combineWindows(window_list):
+        return np.concatenate(window_list, axis=1)
