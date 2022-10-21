@@ -108,10 +108,11 @@ class BaseGAN:
 
 
 class WindowGAN(BaseGAN):
-    def __init__(self, gen, disc=None, train=True, learning_rate=0.01, betas=(0.5, 0.999), lambdaL1=100.0):
+    def __init__(self, width, gen, disc=None, train=True, learning_rate=0.01, betas=(0.5, 0.999), lambdaL1=100.0):
         super().__init__(gen, disc, train=train, learning_rate=learning_rate, betas=betas, lambdaL1=lambdaL1)
         self.lossD_values = []
         self.lossG_values = []
+        self.windowWidth = width
 
     def preprocess(self, a, b):
         # We assume the network looks at one window at a time (i.e. channels = 1)
@@ -127,6 +128,7 @@ class WindowGAN(BaseGAN):
         for i in range(len(self.realAs)):
             self.realA = self.realAs[i]
             self.realB = self.realBs[i]
+            self.expandWidth()
 
             # Run forward pass
             self.forward()
@@ -145,5 +147,17 @@ class WindowGAN(BaseGAN):
 
             self.lossD_values.append(self.lossD.item())
             self.lossG_values.append(self.lossG.item())
+
+            print(f"\tWindow [{i+1}/{len(self.realAs)}]")
+
+    def expandWidth(self):
+        a_copy = self.realA.clone()
+        b_copy = self.realB.clone()
+        if self.realA.shape[-1] < self.windowWidth:
+            torch.nn.ReplicationPad2d((0, self.windowWidth - a_copy.shape[-1], 0, 0))(a_copy)
+        if self.realB.shape[-1] < self.windowWidth:
+            torch.nn.ReplicationPad2d((0, self.windowWidth - b_copy.shape[-1], 0, 0))(b_copy)
+        self.realA = a_copy
+        self.realB = b_copy
 
 

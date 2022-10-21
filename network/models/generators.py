@@ -20,7 +20,7 @@ class SinoUNet(nn.Module):
         - https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix"""
 
     def __init__(self):
-        # Input (1, 256, 256) -> Output (1, 402, 362)
+        # Input (1, 402, 362) -> Output (1, 402, 362)
         super(SinoUNet, self).__init__()
 
         filters = 64
@@ -112,6 +112,136 @@ class SinoUNet(nn.Module):
 
         # Downsampling
         down0_out = self.down0(x)
+        down1_out = self.down1(down0_out)
+        down2_out = self.down2(down1_out)
+        down3_out = self.down3(down2_out)
+        down4_out = self.down4(down3_out)
+        down5_out = self.down5(down4_out)
+        down6_out = self.down6(down5_out)
+        down7_out = self.down7(down6_out)
+        down8_out = self.down8(down7_out)
+
+        # Bottom layer
+        up1_out = self.up1(down8_out)
+
+        # Upsampling
+        up2_in = torch.cat((up1_out, down7_out), dim=1)
+        up2_out = self.up2(up2_in)
+
+        up3_in = torch.cat((up2_out, down6_out), dim=1)
+        up3_out = self.up3(up3_in)
+
+        up4_in = torch.cat((up3_out, down5_out), dim=1)
+        up4_out = self.up4(up4_in)
+
+        up5_in = torch.cat((up4_out, down4_out), dim=1)
+        up5_out = self.up5(up5_in)
+
+        up6_in = torch.cat((up5_out, down3_out), dim=1)
+        up6_out = self.up6(up6_in)
+
+        up7_in = torch.cat((up6_out, down2_out), dim=1)
+        up7_out = self.up7(up7_in)
+
+        up8_in = torch.cat((up7_out, down1_out), dim=1)
+        up8_out = self.up8(up8_in)
+
+        final_out = self.final(up8_out)
+
+        return final_out
+
+
+class PairedWindowUNet(nn.Module):
+    def __init__(self):
+        super(PairedWindowUNet, self).__init__()
+
+        filters = 32
+
+        # Input (1, 402, 25) -> Output (32, 402, 22)
+        self.down1 = nn.Conv2d(1, filters, kernel_size=(1, 4), stride=(1, 1), padding=(0, 0))
+
+        # Input (32, 201, 25) -> Output (64, 100, 25)
+        self.down2 = self.down(filters, filters*2)
+
+        # Input (64, 100, 25) -> Output (128, 50, 25)
+        self.down3 = self.down(filters*2, filters*4)
+
+        # Input (128, 50, 25) -> Output (256, 25, 25)
+        self.down4 = self.down(filters*4, filters*8)
+
+        # Input (256, 25, 25) -> Output (512, 12, 12)
+        self.down5 = self.down(filters*8, filters*16)
+
+        # Input (512, 12, 12) -> Output (512, 6, 6)
+        self.down6 = self.down(filters*16, filters*16)
+
+        # Input (512, 6, 6) -> Output (512, 3, 3)
+        self.down7 = self.down(filters*16, filters*16)
+
+        # Input (512, 3, 3) -> Output (512, 1, 1)
+        self.down8 = self.down(filters*16, filters*16, batchNorm=False)
+
+        # Input (512, 1, 1) -> Output (512, 2, 2)
+        self.up1 = self.up(filters*16, filters*16, dropout=True)
+
+        # Input (1024, 2, 2) -> Output (512, 4, 4)
+        # Input channels double due to skip connections
+        self.up2 = self.up(filters*16 * 2, filters*16, dropout=True)
+
+        # Input (1024, 4, 4) -> Output (512, 8, 8)
+        self.up3 = self.up(filters*16 * 2, filters*16, dropout=True, k=(5, 4))
+
+        # Input (1024, 8, 8) -> Output (256, 16, 16)
+        self.up4 = self.up(filters*16 * 2, filters*8)
+
+        # Input (512, 16, 16) -> Output (128, 32, 32)
+        self.up5 = self.up(filters*8 * 2, filters * 4, k=(5, 4))
+
+        # Input (256, 32, 32) -> Output (64, 64, 64)
+        self.up6 = self.up(filters*4 * 2, filters * 2)
+
+        # Input (128, 64, 64) -> Output (32, 128, 128)
+        self.up7 = self.up(filters*2 * 2, filters)
+
+        # Input (64, 128, 128) -> Output (1, 256, 256)
+        self.up8 = self.up(filters * 2, 1, k=(1, 4), s=(1, 1))
+
+        # Input (1, 256, 256) -> (1, 402, 25)
+        self.final = nn.Sequential(
+            nn.Tanh()
+        )
+
+    @staticmethod
+    def down(in_c, out_c, batchNorm=True, k=(4, 4), s=(2, 1), p=(0, 0)):
+        if batchNorm:
+            batchNorm = nn.BatchNorm2d(out_c, eps=0.001)
+        else:
+            batchNorm = nn.Identity()
+        return nn.Sequential(
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(in_c, out_c, kernel_size=k, stride=s, padding=p),
+            batchNorm,
+        )
+
+    @staticmethod
+    def up(in_c, out_c, dropout=False, k=(4, 4), s=(2, 1), p=(0, 0)):
+        if dropout:
+            dropout = nn.Dropout(0.5)
+        else:
+            dropout = nn.Identity()
+        return nn.Sequential(
+            nn.ReLU(inplace=True),
+            nn.ConvTranspose2d(in_c, out_c, kernel_size=k, stride=s, padding=p),
+            nn.BatchNorm2d(out_c, eps=0.001),
+            dropout
+        )
+
+    def forward(self, x):
+        if x.shape[-1] != 25:
+            down0_out = nn.ReplicationPad2d((0, 25 - x.shape[-1], 0, 0))(x)
+        else:
+            down0_out = nn.Identity()(x)
+        # Downsampling
         down1_out = self.down1(down0_out)
         down2_out = self.down2(down1_out)
         down3_out = self.down3(down2_out)

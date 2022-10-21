@@ -36,10 +36,10 @@ class BaseDataset(Dataset):
         cleanPath, *shiftPaths = self.filepaths[item]
 
         # Get clean & shifts from path
-        clean = loadTiff(cleanPath, dtype=np.float64)
+        clean = loadTiff(cleanPath, dtype=np.float32)
         shifts = []
         for shiftPath in shiftPaths:
-            shifts.append(loadTiff(shiftPath))
+            shifts.append(loadTiff(shiftPath, dtype=np.float32))
 
         # Apply any transformations
         if self.transform:
