@@ -79,7 +79,7 @@ def generateSample(N_size, tot_objects, output_path=None, sampleNo=None, verbose
 
     # Save Clean Sinogram
     if output_path:
-        if not sampleNo:
+        if sampleNo is None:
             raise RuntimeError("If supplying an output path, a sample number must also be supplied.")
         filename = os.path.join(output_path, str(sampleNo).zfill(4) + '_clean')
         save3DTiff(ProjData3D, filename)
@@ -148,13 +148,13 @@ def simulateFlats(ProjData3D, N_size, I0=40000, flatsnum=20, shifted_positions_n
 
         # Save normalised projection (i.e. sinogram with artifacts)
         if output_path:
-            if not sampleNo:
+            if sampleNo is None:
                 raise RuntimeError("If supplying an output path, a sample number must also be supplied.")
             shiftDir = os.path.join(output_path, 'shift'+str(i).zfill(2))
-            filename = os.path.join(shiftDir, sampleNo+'_shift'+str(i).zfill(2))
+            filename = os.path.join(shiftDir, str(sampleNo)+'_shift'+str(i).zfill(2))
             save3DTiff(projData3D_norm[:, :, :, i], filename)
 
-        return projData3D_norm
+    return projData3D_norm
 
 # %%%
 

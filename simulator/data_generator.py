@@ -56,5 +56,6 @@ if __name__ == '__main__':
         if verbose:
             print(f"Generating sample [{str(sampleNo).zfill(4)} / {str(samples-1).zfill(4)}]")
         samplePath, cleanPath = makeDirectories(sampleNo, shifts)
-        sample_clean = generateSample(size, objects, cleanPath, sampleNo, verbose=verbose)
-        sample_shifts = simulateFlats(sample_clean, size, samplePath, sampleNo, verbose=verbose)
+        sample_clean = generateSample(size, objects, output_path=cleanPath, sampleNo=sampleNo, verbose=verbose)
+        sample_shifts = simulateFlats(sample_clean, size, shifted_positions_no=shifts, output_path=samplePath,
+                                      sampleNo=sampleNo, verbose=verbose)
