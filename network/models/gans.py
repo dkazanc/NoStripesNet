@@ -113,14 +113,19 @@ class WindowGAN(BaseGAN):
         self.lossD_values = []
         self.lossG_values = []
         self.windowWidth = width
+        self.realAs, self.realBs = [], []
 
     def preprocess(self, a, b):
+        self.realAs, self.realBs = [], []
         # We assume the network looks at one window at a time (i.e. channels = 1)
         # Therefore we can return data as is (it is already a list of windows), no need to change channels
         if not (isinstance(a, list) and isinstance(b, list)):
             raise TypeError(f"Inputs must be of type 'list'. Instead got a: {type(a)} and b: {type(b)}")
-        self.realAs = a
-        self.realBs = b
+        # Get all widths to be the same
+        for window in a:
+            self.realAs.append(nn.ReplicationPad2d((0, self.windowWidth - window.shape[-1], 0, 0))(window))
+        for window in b:
+            self.realBs.append(nn.ReplicationPad2d((0, self.windowWidth - window.shape[-1], 0, 0))(window))
 
     def run_passes(self):
         """Run forwards and backwards passes.
@@ -159,5 +164,14 @@ class WindowGAN(BaseGAN):
             torch.nn.ReplicationPad2d((0, self.windowWidth - b_copy.shape[-1], 0, 0))(b_copy)
         self.realA = a_copy
         self.realB = b_copy
+
+    def testGAN(self):
+        self.fakeBs = []
+        for window in self.realAs:
+            self.realA = window
+            self.forward()
+            self.fakeBs.append(self.fakeB)
+        return self.fakeBs
+
 
 

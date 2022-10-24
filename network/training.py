@@ -30,6 +30,7 @@ def batch_reconstruct(batch, size, device='cpu'):
     new_batch = torch.zeros((batch.shape[0], 1, size, size))
     for i in range(batch.shape[0]):  # is looping best idea? possible to vectorise?
         sinogram = batch[i].squeeze().numpy()
+        sinogram = np.delete(sinogram, np.s_[362:], axis=-1)  # must find way to make this scalable to other image sizes
         new_batch[i] = torch.from_numpy(rectools.FBP(sinogram)).unsqueeze(0)
     return new_batch
 
@@ -124,6 +125,7 @@ def testBase(dataloader, model):
 def trainPairedWindows(epochs, dataloader, model):
     for epoch in range(epochs):
         total_step = len(dataloader) * windowWidth
+        print(f"Training has begun. Epochs: {epochs}, Steps: {total_step}")
         for i, (clean, centre, _) in enumerate(dataloader):
             # Pre-process data
             model.preprocess(centre, clean)
@@ -158,12 +160,12 @@ def testPairedWindows(dataloader, model):
     # Generate fakes - only need to run forward pass
     with torch.no_grad():
         model.preprocess(centre, clean)
-        model.forward()
-        fakes = model.fakeB
+        model.testGAN()
+        fakes = model.fakeBs
 
     # Combine windows into sinograms
-    clean = dataloader.dataset.combineWindows(clean)
-    centre = dataloader.dataset.combineWindows(centre)
+    clean = dataloader.dataset.combineWindows(model.realBs)
+    centre = dataloader.dataset.combineWindows(model.realAs)
     fakes = dataloader.dataset.combineWindows(fakes)
 
     # Plot clean vs centre vs generated sinograms

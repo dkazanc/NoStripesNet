@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import torch
 from torch.utils.data import Dataset
 from simulator.data_io import loadTiff
 
@@ -87,9 +88,9 @@ class WindowDataset(BaseDataset):
         self.windowWidth = windowWidth
 
     def getWindows(self, image):
-        num_windows = image.shape[1] // self.windowWidth
+        num_windows = image.shape[-1] // self.windowWidth
         windows = []
-        for i in range(num_windows + 1):
+        for i in range(num_windows+1):
             try:
                 window = image[..., i * self.windowWidth:(i + 1) * self.windowWidth]
             except IndexError:
@@ -110,7 +111,7 @@ class WindowDataset(BaseDataset):
 
     @staticmethod
     def combineWindows(window_list):
-        return np.concatenate(window_list, axis=1)
+        return torch.from_numpy(np.concatenate(window_list, axis=-1))
 
 
 class PairedWindowDataset(WindowDataset):
