@@ -151,7 +151,7 @@ def simulateFlats(ProjData3D, N_size, I0=40000, flatsnum=20, shifted_positions_n
             if sampleNo is None:
                 raise RuntimeError("If supplying an output path, a sample number must also be supplied.")
             shiftDir = os.path.join(output_path, 'shift'+str(i).zfill(2))
-            filename = os.path.join(shiftDir, str(sampleNo)+'_shift'+str(i).zfill(2))
+            filename = os.path.join(shiftDir, str(sampleNo).zfill(4)+'_shift'+str(i).zfill(2))
             save3DTiff(projData3D_norm[:, :, :, i], filename)
 
     return projData3D_norm
