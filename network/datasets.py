@@ -111,7 +111,7 @@ class WindowDataset(BaseDataset):
 
     @staticmethod
     def combineWindows(window_list):
-        return torch.from_numpy(np.concatenate(window_list, axis=-1))
+        return torch.cat(window_list, dim=-1)
 
 
 class PairedWindowDataset(WindowDataset):
