@@ -78,7 +78,7 @@ def testBase(dataloader, model):
     # Generate fakes - only need to run forward pass
     with torch.no_grad():
         model.preprocess(centre, clean)
-        model.forward()
+        model.run_passes()
         fakes = model.fakeB
 
     # Plot clean vs centre vs generated sinograms
@@ -161,7 +161,7 @@ def testPairedWindows(dataloader, model):
     # Generate fakes - only need to run forward pass
     with torch.no_grad():
         model.preprocess(centre, clean)
-        model.forward()
+        model.run_passes()
         fakes = model.fakeBs
 
     # Combine windows into sinograms
@@ -218,7 +218,7 @@ if __name__ == '__main__':
     windowWidth = 25
     num_windows = (int(np.sqrt(2) * size) // windowWidth + 1)
 
-    epochs = 1
+    epochs = 5
     learning_rate = 0.0002
     betas = (0.5, 0.999)
     batch_size = 32
@@ -237,7 +237,7 @@ if __name__ == '__main__':
     disc.apply(init_weights)
     gen = PairedWindowUNet()
     gen.apply(init_weights)
-    model = WindowGAN(windowWidth, gen, disc, train=True, learning_rate=learning_rate, betas=betas)
+    model = WindowGAN(windowWidth, gen, disc, mode='train', learning_rate=learning_rate, betas=betas)
 
     # Train
     lossesG, lossesD = trainPairedWindows(epochs, dataloader, model)

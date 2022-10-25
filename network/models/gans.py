@@ -14,35 +14,36 @@ def init_weights(m):
 
 
 class BaseGAN:
-    def __init__(self, gen, disc=None, train=True, learning_rate=0.01, betas=(0.5, 0.999), lambdaL1=100.0):
+    def __init__(self, gen, disc=None, mode='train', learning_rate=0.01, betas=(0.5, 0.999), lambdaL1=100.0):
         self.gen = gen
-        self.train = train
+        self.disc = disc
+        self.setMode(mode)
 
         # if training, create discriminator and set up loss & optimizer functions
-        if self.train:
-            self.disc = disc
-
+        if self.mode == 'train':
             self.lossGAN = nn.BCEWithLogitsLoss()
             self.lossL1 = nn.L1Loss()
             self.lambdaL1 = lambdaL1
             self.optimizerG = optim.Adam(self.gen.parameters(), lr=learning_rate, betas=betas)
             self.optimizerD = optim.Adam(self.disc.parameters(), lr=learning_rate, betas=betas)
 
-            self.setMode('train')
-
     def setMode(self, mode):
         if mode == 'test':
             self.gen.eval()
-            self.disc.eval()
             self.set_requires_grad(self.gen, False)
-            self.set_requires_grad(self.disc, False)
+            if self.disc is not None:
+                self.disc.eval()
+                self.set_requires_grad(self.disc, False)
         elif mode == 'train':
             self.gen.train()
-            self.disc.train()
             self.set_requires_grad(self.gen, True)
-            self.set_requires_grad(self.disc, True)
+            if self.disc is not None:
+                self.disc.train()
+                self.set_requires_grad(self.disc, True)
+            else:
+                raise TypeError("If training (i.e. mode == 'train'), discriminator should be passed as argument.")
         else:
-            raise ValueError(f"mode should be one of 'test', 'train'. Instead got {mode}.")
+            raise ValueError(f"mode should be one of 'test', 'train'. Instead got '{mode}'.")
         self.mode = mode
 
     def preprocess(self, a, b):
@@ -91,55 +92,8 @@ class BaseGAN:
         # Run forward pass
         self.forward()
 
-        # Run backward pass for discriminator
-        self.set_requires_grad(self.disc, True)
-        self.optimizerD.zero_grad()
-        self.backwardD()
-        self.optimizerD.step()
-
-        # Run backward pass for generator
-        self.set_requires_grad(self.disc, False)  # stop gradient calculation for discriminator
-        self.optimizerG.zero_grad()
-        self.backwardG()
-        self.optimizerG.step()
-
-    @staticmethod
-    def set_requires_grad(network, grad):
-        for param in network.parameters():
-            param.requires_grad = grad
-
-
-
-class WindowGAN(BaseGAN):
-    def __init__(self, width, gen, disc=None, train=True, learning_rate=0.01, betas=(0.5, 0.999), lambdaL1=100.0):
-        super().__init__(gen, disc, train=train, learning_rate=learning_rate, betas=betas, lambdaL1=lambdaL1)
-        self.lossD_values = []
-        self.lossG_values = []
-        self.windowWidth = width
-        self.realAs, self.realBs = [], []
-
-    def preprocess(self, a, b):
-        self.realAs, self.realBs = [], []
-        # We assume the network looks at one window at a time (i.e. channels = 1)
-        # Therefore we can return data as is (it is already a list of windows), no need to change channels
-        if not (isinstance(a, list) and isinstance(b, list)):
-            raise TypeError(f"Inputs must be of type 'list'. Instead got a: {type(a)} and b: {type(b)}")
-        # Get all widths to be the same
-        for window in a:
-            self.realAs.append(nn.ReplicationPad2d((0, self.windowWidth - window.shape[-1], 0, 0))(window))
-        for window in b:
-            self.realBs.append(nn.ReplicationPad2d((0, self.windowWidth - window.shape[-1], 0, 0))(window))
-
-    def run_passes(self):
-        """Run forwards and backwards passes.
-        Loop through list of windows and run passes for each window"""
-        for i in range(len(self.realAs)):
-            self.realA = self.realAs[i]
-            self.realB = self.realBs[i]
-
-            # Run forward pass
-            self.forward()
-
+        # If testing, only forward pass needs to be ran
+        if self.mode == 'train':
             # Run backward pass for discriminator
             self.set_requires_grad(self.disc, True)
             self.optimizerD.zero_grad()
@@ -152,8 +106,47 @@ class WindowGAN(BaseGAN):
             self.backwardG()
             self.optimizerG.step()
 
-            self.lossD_values.append(self.lossD.item())
-            self.lossG_values.append(self.lossG.item())
+    @staticmethod
+    def set_requires_grad(network, grad):
+        for param in network.parameters():
+            param.requires_grad = grad
+
+
+
+class WindowGAN(BaseGAN):
+    def __init__(self, width, gen, disc=None, mode='train', learning_rate=0.01, betas=(0.5, 0.999), lambdaL1=100.0):
+        super().__init__(gen, disc, mode=mode, learning_rate=learning_rate, betas=betas, lambdaL1=lambdaL1)
+        self.lossD_values = []
+        self.lossG_values = []
+        self.windowWidth = width
+        self.realAs, self.realBs = [], []
+
+    def preprocess(self, a, b):
+        self.realAs, self.realBs = [], []
+        # We assume the network looks at one window at a time (i.e. channels = 1)
+        # Therefore we can return data as is (it is already a list of windows), no need to change channels
+        if not (isinstance(a, list) and isinstance(b, list)):
+            raise TypeError(f"Inputs must be of type {list}. Instead got a: {type(a)} and b: {type(b)}")
+        # Get all widths to be the same
+        for window in a:
+            self.realAs.append(nn.ReplicationPad2d((0, self.windowWidth - window.shape[-1], 0, 0))(window))
+        for window in b:
+            self.realBs.append(nn.ReplicationPad2d((0, self.windowWidth - window.shape[-1], 0, 0))(window))
+
+    def run_passes(self):
+        """Run forwards and backwards passes.
+        Loop through list of windows and run forwards & backwards pass for each window"""
+        self.fakeBs = []
+        for i in range(len(self.realAs)):
+            self.realA = self.realAs[i]
+            self.realB = self.realBs[i]
+
+            super().run_passes()
+
+            if self.mode == 'train':
+                self.lossD_values.append(self.lossD.item())
+                self.lossG_values.append(self.lossG.item())
+            self.fakeBs.append(self.fakeB)
 
             print(f"\tWindow [{i+1}/{len(self.realAs)}]")
 
@@ -166,17 +159,3 @@ class WindowGAN(BaseGAN):
             torch.nn.ReplicationPad2d((0, self.windowWidth - b_copy.shape[-1], 0, 0))(b_copy)
         self.realA = a_copy
         self.realB = b_copy
-
-    def forward(self):
-        if self.mode == 'train':
-            super().forward()
-        elif self.mode == 'test':
-            self.fakeBs = []
-            for window in self.realAs:
-                self.realA = window
-                super().forward()
-                self.fakeBs.append(self.fakeB)
-
-
-
-
