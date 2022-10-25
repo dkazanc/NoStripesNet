@@ -30,7 +30,7 @@ def batch_reconstruct(batch, size, device='cpu'):
     new_batch = torch.zeros((batch.shape[0], 1, size, size))
     for i in range(batch.shape[0]):  # is looping best idea? possible to vectorise?
         sinogram = batch[i].squeeze().numpy()
-        sinogram = np.delete(sinogram, np.s_[362:], axis=-1)  # must find way to make this scalable to other image sizes
+        sinogram = np.delete(sinogram, np.s_[p:], axis=-1)  # crop sinogram to correct size
         new_batch[i] = torch.from_numpy(rectools.FBP(sinogram)).unsqueeze(0)
     return new_batch
 
@@ -123,9 +123,10 @@ def testBase(dataloader, model):
 
 
 def trainPairedWindows(epochs, dataloader, model):
+    total_step = len(dataloader) * num_windows
+    print(f"Training has begun. Epochs: {epochs}, Batches: {len(dataloader)}, Steps/epoch: {total_step}\n"
+          f"Data processed per batch: {num_windows * dataloader.batch_size}")
     for epoch in range(epochs):
-        total_step = len(dataloader) * windowWidth
-        print(f"Training has begun. Epochs: {epochs}, Steps: {total_step}")
         for i, (clean, centre, _) in enumerate(dataloader):
             # Pre-process data
             model.preprocess(centre, clean)
@@ -134,7 +135,7 @@ def trainPairedWindows(epochs, dataloader, model):
 
             # Print out some useful info
             if i % 1 == 0:
-                print(f"Epoch [{epoch + 1}/{epochs}], Step [{(i + 1) * windowWidth}/{total_step}], "
+                print(f"Epoch [{epoch + 1}/{epochs}], Step [{(i + 1) * num_windows}/{total_step}], "
                       f"Loss_D: {model.lossD_values[-1]}, Loss_G: {model.lossG_values[-1]}")
 
     # Plot training losses
@@ -154,18 +155,18 @@ def testPairedWindows(dataloader, model):
     model.setMode('test')
     # Get one batch from dataloader
     iterable_dataloader = iter(dataloader)
-    next(iterable_dataloader)
+    next(iterable_dataloader)  # ignore first batch as it is mostly blank space
     clean, centre, _ = next(iterable_dataloader)
 
     # Generate fakes - only need to run forward pass
     with torch.no_grad():
         model.preprocess(centre, clean)
-        model.testGAN()
+        model.forward()
         fakes = model.fakeBs
 
     # Combine windows into sinograms
-    clean = dataloader.dataset.combineWindows(model.realBs)
-    centre = dataloader.dataset.combineWindows(model.realAs)
+    clean = dataloader.dataset.combineWindows(clean)
+    centre = dataloader.dataset.combineWindows(centre)
     fakes = dataloader.dataset.combineWindows(fakes)
 
     # Plot clean vs centre vs generated sinograms
@@ -215,6 +216,7 @@ if __name__ == '__main__':
     size = 256
     num_shifts = 5
     windowWidth = 25
+    num_windows = (int(np.sqrt(2) * size) // windowWidth + 1)
 
     epochs = 1
     learning_rate = 0.0002

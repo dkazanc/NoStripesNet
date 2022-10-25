@@ -28,6 +28,8 @@ class BaseGAN:
             self.optimizerG = optim.Adam(self.gen.parameters(), lr=learning_rate, betas=betas)
             self.optimizerD = optim.Adam(self.disc.parameters(), lr=learning_rate, betas=betas)
 
+            self.setMode('train')
+
     def setMode(self, mode):
         if mode == 'test':
             self.gen.eval()
@@ -41,6 +43,7 @@ class BaseGAN:
             self.set_requires_grad(self.disc, True)
         else:
             raise ValueError(f"mode should be one of 'test', 'train'. Instead got {mode}.")
+        self.mode = mode
 
     def preprocess(self, a, b):
         self.realA = a
@@ -133,7 +136,6 @@ class WindowGAN(BaseGAN):
         for i in range(len(self.realAs)):
             self.realA = self.realAs[i]
             self.realB = self.realBs[i]
-            self.expandWidth()
 
             # Run forward pass
             self.forward()
@@ -165,13 +167,16 @@ class WindowGAN(BaseGAN):
         self.realA = a_copy
         self.realB = b_copy
 
-    def testGAN(self):
-        self.fakeBs = []
-        for window in self.realAs:
-            self.realA = window
-            self.forward()
-            self.fakeBs.append(self.fakeB)
-        return self.fakeBs
+    def forward(self):
+        if self.mode == 'train':
+            super().forward()
+        elif self.mode == 'test':
+            self.fakeBs = []
+            for window in self.realAs:
+                self.realA = window
+                super().forward()
+                self.fakeBs.append(self.fakeB)
+
 
 
 
