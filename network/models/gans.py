@@ -18,6 +18,8 @@ class BaseGAN:
         self.gen = gen
         self.disc = disc
         self.setMode(mode)
+        self.lossD_values = []
+        self.lossG_values = []
 
         # if training, create discriminator and set up loss & optimizer functions
         if self.mode == 'train':
@@ -106,6 +108,11 @@ class BaseGAN:
             self.backwardG()
             self.optimizerG.step()
 
+            # Add losses to list (mainly for plotting purposes)
+            self.lossD_values.append(self.lossD.item())
+            self.lossG_values.append(self.lossG.item())
+
+
     @staticmethod
     def set_requires_grad(network, grad):
         for param in network.parameters():
@@ -116,8 +123,6 @@ class BaseGAN:
 class WindowGAN(BaseGAN):
     def __init__(self, width, gen, disc=None, mode='train', learning_rate=0.01, betas=(0.5, 0.999), lambdaL1=100.0):
         super().__init__(gen, disc, mode=mode, learning_rate=learning_rate, betas=betas, lambdaL1=lambdaL1)
-        self.lossD_values = []
-        self.lossG_values = []
         self.windowWidth = width
         self.realAs, self.realBs = [], []
 
@@ -143,9 +148,6 @@ class WindowGAN(BaseGAN):
 
             super().run_passes()
 
-            if self.mode == 'train':
-                self.lossD_values.append(self.lossD.item())
-                self.lossG_values.append(self.lossG.item())
             self.fakeBs.append(self.fakeB)
 
             print(f"\tWindow [{i+1}/{len(self.realAs)}]")
