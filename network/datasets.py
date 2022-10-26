@@ -4,13 +4,14 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 from simulator.data_io import loadTiff
+from metrics import gradient_sum_tv
 
 
 class BaseDataset(Dataset):
     """Dataset to get sinograms from directories (provided data was generated according to the scripts in ../simulators)
     Data is split into train:validate:test according to parameter `tvt`, a tuple of the ratios"""
 
-    def __init__(self, root, transform, mode, tvt, size=256, shifts=5):
+    def __init__(self, root, mode, tvt, size=256, shifts=5, transform=None):
         self.root = root
         self.size = size
         self.shifts = shifts
@@ -84,8 +85,8 @@ class BaseDataset(Dataset):
 
 
 class WindowDataset(BaseDataset):
-    def __init__(self, root, transform, mode, tvt, windowWidth, size=256, shifts=5):
-        super().__init__(root, transform, mode, tvt, size=size, shifts=shifts)
+    def __init__(self, root, mode, tvt, windowWidth, size=256, shifts=5, transform=None):
+        super().__init__(root, mode, tvt, size=size, shifts=shifts, transform=transform)
         self.windowWidth = windowWidth
 
     def getWindows(self, image):
@@ -124,8 +125,9 @@ class WindowDataset(BaseDataset):
 
 
 class PairedWindowDataset(WindowDataset):
-    def __init__(self, root, transform, mode, tvt, windowWidth, size=256, shifts=5):
-        super().__init__(root, transform, mode, tvt, windowWidth, size=size, shifts=shifts)
+    def __init__(self, root, mode, tvt, windowWidth, size=256, shifts=5, stripeMetric=gradient_sum_tv, transform=None):
+        super().__init__(root, mode, tvt, windowWidth, size=size, shifts=shifts, transform=transform)
+        self.metric = stripeMetric
 
     def __getitem__(self, item):
         clean, *shifts = super().__getitem__(item)
@@ -135,12 +137,12 @@ class PairedWindowDataset(WindowDataset):
         bob = []
         # loop through each window
         for i in range(len(centre)):
-            centre_tv = self.gradient_sum_tv(centre[i])
+            centre_tv = self.metric(centre[i])
             min_tv = centre_tv
             min_idx = self.shifts // 2  # centre index
             # loop through each shift
             for j in range(self.shifts):
-                shift_tv = self.gradient_sum_tv(shifts[j][i])
+                shift_tv = self.metric(shifts[j][i])
                 if shift_tv < min_tv:
                     min_tv = shift_tv
                     min_idx = j
@@ -155,11 +157,3 @@ class PairedWindowDataset(WindowDataset):
         centre_full = self.combineWindows(centre)
         bob_full = self.combineWindows(bob)
         return clean_full, centre_full, bob_full
-
-    def gradient_sum_tv(self, data):
-        grad_sum = np.sum(np.gradient(data, axis=1), axis=0)
-        return self.total_variation(grad_sum)
-
-    @staticmethod
-    def total_variation(data):
-        return np.sum(np.abs(data[1:] - data[:-1]))
