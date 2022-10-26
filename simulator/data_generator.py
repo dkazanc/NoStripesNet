@@ -36,6 +36,9 @@ def get_args():
     parser.add_argument('-N', "--size", type=int, default=256,
                         help="Size of image generated (cubic). Also height of sinogram")
     parser.add_argument('-o', "--objects", type=int, default=300, help="Number of objects used to generate each sample")
+    parser.add_argument('-I', "--I0", type=int, default=40000, help="Full-beam photon flux intensity")
+    parser.add_argument('-f', "--flatsnum", type=int, default=20, help="Number of the flat fields generated")
+    parser.add_argument('-p', "--shiftstep", type=int, default=2, help="Shift step of a sample in pixels")
     parser.add_argument('-v', "--verbose", action="store_true", help="Print some extra information when running")
     return parser.parse_args()
 
@@ -50,6 +53,9 @@ if __name__ == '__main__':
     shifts = args.shifts
     size = args.size
     objects = args.objects
+    I0 = args.I0
+    flatsnum = args.flatsnum
+    shift_step = args.shiftstep
     verbose = args.verbose
 
     for sampleNo in range(samples):
@@ -57,5 +63,5 @@ if __name__ == '__main__':
             print(f"Generating sample [{str(sampleNo).zfill(4)} / {str(samples-1).zfill(4)}]")
         samplePath, cleanPath = makeDirectories(sampleNo, shifts)
         sample_clean = generateSample(size, objects, output_path=cleanPath, sampleNo=sampleNo, verbose=verbose)
-        sample_shifts = simulateFlats(sample_clean, size, shifted_positions_no=shifts, output_path=samplePath,
-                                      sampleNo=sampleNo, verbose=verbose)
+        sample_shifts = simulateFlats(sample_clean, size, I0=I0, flatsnum=flatsnum, shifted_positions_no=shifts,
+                                      shift_step=shift_step, output_path=samplePath, sampleNo=sampleNo, verbose=verbose)
