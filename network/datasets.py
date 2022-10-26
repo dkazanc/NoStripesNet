@@ -1,4 +1,5 @@
 import os
+import itertools
 import numpy as np
 import torch
 from torch.utils.data import Dataset
@@ -89,6 +90,8 @@ class WindowDataset(BaseDataset):
 
     def getWindows(self, image):
         num_windows = image.shape[-1] // self.windowWidth
+        if image.shape[-1] % self.windowWidth == 0:
+            num_windows -= 1
         windows = []
         for i in range(num_windows+1):
             try:
@@ -111,7 +114,13 @@ class WindowDataset(BaseDataset):
 
     @staticmethod
     def combineWindows(window_list):
-        return torch.cat(window_list, dim=-1)
+        if isinstance(window_list[0], torch.Tensor):
+            return torch.cat(window_list, dim=-1)
+        elif isinstance(window_list[0], np.ndarray):
+            return np.concatenate(window_list, axis=-1)
+        elif isinstance(window_list[0], list):
+            return list(itertools.chain.from_iterable(window_list))
+
 
 
 class PairedWindowDataset(WindowDataset):
