@@ -46,10 +46,25 @@ def trainPairedWindows(epochs, dataloader, model):
                 print(f"Epoch [{epoch + 1}/{epochs}], Step [{(i + 1) * num_windows}/{total_step}], "
                       f"Loss_D: {model.lossD_values[-1]}, Loss_G: {model.lossG_values[-1]}")
 
+        # At the end of every epoch, display some data and save model state
+        vis.plot_losses()
+        vis.plot_real_vs_fake_batch()
+        vis.plot_real_vs_fake_recon()
+        # Save models
+        saveModels = input("Save Models? (y/[n]): ")
+        if saveModels == 'y' and model_save_dir and model_name:
+            torch.save(gen.state_dict(), os.path.join(model_save_dir, f"gen_{model_name}_epoch{epoch}_sd.pt"))
+            torch.save(disc.state_dict(), os.path.join(model_save_dir, f"disc_{model_name}_epoch{epoch}_sd.pt"))
+            print(f"Models <{model_name}> saved to {model_save_dir}")
+        else:
+            print("Models not saved.")
+
 
 if __name__ == '__main__':
     # Hyperparameters
     dataroot = os.path.join(os.pardir, 'data')
+    model_save_dir = os.path.join(os.curdir, 'models')
+    model_name = 'windowed-gan'
     size = 256
     num_shifts = 5
     windowWidth = 25
@@ -79,9 +94,3 @@ if __name__ == '__main__':
 
     # Train
     trainPairedWindows(epochs, dataloader, model)
-    vis.plot_losses()
-
-    # Visualize some data
-    model.setMode('test')  # might not be necessary
-    vis.plot_real_vs_fake_batch()
-    vis.plot_real_vs_fake_recon()
