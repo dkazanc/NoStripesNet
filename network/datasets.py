@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 from simulator.data_io import loadTiff
-from metrics import gradient_sum_tv
+from metrics import *
 
 
 class BaseDataset(Dataset):
@@ -137,14 +137,14 @@ class PairedWindowDataset(WindowDataset):
         bob = []
         # loop through each window
         for i in range(len(centre)):
-            centre_tv = self.metric(centre[i])
-            min_tv = centre_tv
+            centre_metric = self.metric(centre[i])
+            min_metric = centre_metric
             min_idx = self.shifts // 2  # centre index
             # loop through each shift
             for j in range(self.shifts):
-                shift_tv = self.metric(shifts[j][i])
-                if shift_tv < min_tv:
-                    min_tv = shift_tv
+                shift_metric = self.metric(shifts[j][i])
+                if shift_metric < min_metric:
+                    min_metric = shift_metric
                     min_idx = j
             bob.append(shifts[min_idx][i])
 
