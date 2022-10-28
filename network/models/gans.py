@@ -28,24 +28,35 @@ class BaseGAN:
             self.lambdaL1 = lambdaL1
             self.optimizerG = optim.Adam(self.gen.parameters(), lr=learning_rate, betas=betas)
             self.optimizerD = optim.Adam(self.disc.parameters(), lr=learning_rate, betas=betas)
+            self.schedulerG = optim.lr_scheduler.ReduceLROnPlateau(self.optimizerG, patience=1, verbose=True)
+            self.schedulerD = optim.lr_scheduler.ReduceLROnPlateau(self.optimizerD, patience=2, verbose=True)
 
-    def setMode(self, mode):
-        if mode == 'test':
-            self.gen.eval()
-            self.set_requires_grad(self.gen, False)
-            if self.disc is not None:
-                self.disc.eval()
-                self.set_requires_grad(self.disc, False)
-        elif mode == 'train':
+    def setMode(self, mode, disc=None):
+        if mode == 'train':
             self.gen.train()
             self.set_requires_grad(self.gen, True)
             if self.disc is not None:
                 self.disc.train()
                 self.set_requires_grad(self.disc, True)
             else:
-                raise TypeError("If training (i.e. mode == 'train'), discriminator should be passed as argument.")
+                if disc is not None:
+                    self.disc = disc
+                    self.set_requires_grad(self.disc, True)
+                else:
+                    raise TypeError("If training (i.e. mode == 'train'), discriminator should be passed as argument.")
+        elif mode == 'validate':
+            self.gen.eval()
+            self.set_requires_grad(self.gen, True)
+            self.disc.eval()  # if this raises an error something really wrong has happened
+            self.set_requires_grad(self.disc, True)
+        elif mode == 'test':
+            self.gen.eval()
+            self.set_requires_grad(self.gen, False)
+            if self.disc is not None:
+                self.disc.eval()
+                self.set_requires_grad(self.disc, False)
         else:
-            raise ValueError(f"mode should be one of 'test', 'train'. Instead got '{mode}'.")
+            raise ValueError(f"mode should be one of 'train', 'validate' or 'test'. Instead got '{mode}'.")
         self.mode = mode
 
     def preprocess(self, a, b):
@@ -95,7 +106,7 @@ class BaseGAN:
         self.forward()
 
         # If testing, only forward pass needs to be ran
-        if self.mode == 'train':
+        if self.mode != 'testing':
             # Run backward pass for discriminator
             self.set_requires_grad(self.disc, True)
             self.optimizerD.zero_grad()
