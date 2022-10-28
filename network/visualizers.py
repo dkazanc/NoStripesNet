@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 
 import torch
 from torchvision import utils
@@ -9,7 +10,7 @@ from datasets import *
 from models.gans import *
 
 
-def batch_reconstruct(batch, size, device='cpu'):
+def getRectools2D(size, device='cpu'):
     total_angles = int(0.5 * np.pi * size)
     angles = np.linspace(0, 179.9, total_angles, dtype='float32')
     angles_rad = angles * (np.pi / 180.0)
@@ -20,6 +21,12 @@ def batch_reconstruct(batch, size, device='cpu'):
                            AnglesVec=angles_rad,
                            ObjSize=size,
                            device_projector=device)
+    return rectools
+
+
+def batch_reconstruct(batch, size, device='cpu'):
+    rectools = getRectools2D(size, device)
+    p = int(np.sqrt(2) * size)
     assert (batch.shape[1] == 1)
     new_batch = torch.zeros((batch.shape[0], 1, size, size))
     for i in range(batch.shape[0]):  # is looping best idea? possible to vectorise?
@@ -116,3 +123,42 @@ class PairedWindowGANVisualizer(BaseGANVisualizer):
         self.model.realB = self.dataset.combineWindows(self.model.realBs)
         self.model.fakeB = self.dataset.combineWindows(self.model.fakeBs)
         super().plot_real_vs_fake_recon()
+
+
+class MetricVisualizer:
+    def __init__(self, size, subplot_size, figsize=(20, 10)):
+        self.size = size
+        self.rectools = getRectools2D(size)
+        self.subplot_size = subplot_size
+        self.i = 1
+        self.fig = plt.figure(figsize=figsize)
+
+    def plot_box(self, data, titles=None):
+        plt.close(self.fig)
+        if titles is None:
+            titles = []
+        new_fig = plt.figure(figsize=(20, 10))
+        ax = new_fig.add_subplot()
+        bp = ax.boxplot(data, meanline=True, showmeans=True, vert=False)
+        ax.set_yticklabels(titles)
+        for median in bp['medians']:
+            coords = median.get_xydata()[0]
+            ax.annotate(round(median.get_xdata()[0], 4), coords, xytext=(coords[0]-0.01, coords[1]-0.2))
+            median.set(color='red')
+        for mean in bp['means']:
+            coords = mean.get_xydata()[0]
+            ax.annotate(round(mean.get_xdata()[0], 4), coords, xytext=(coords[0] - 0.01, coords[1] - 0.2))
+            mean.set(color='blue', label=mean.get_xdata()[0])
+        legend_elements = [Line2D([0], [0], color='red', label='Median'),
+                           Line2D([0], [0], color='blue', linestyle='--', label='Mean')]
+        ax.legend(handles=legend_elements, loc='upper left', fontsize='large')
+
+    def plot_img(self, image, title='', cmap='gray'):
+        plt.subplot(*self.subplot_size, self.i)
+        self.i += 1
+        plt.imshow(image, cmap=cmap)
+        plt.title(title)
+        plt.axis('off')
+
+    def plot_recon(self, sino, title='', cmap='gray'):
+        self.plot_img(self.rectools.FBP(sino), title, cmap)
