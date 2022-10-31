@@ -1,3 +1,5 @@
+import sys
+sys.path.append('..')  # crap solution to an even worse problem
 import os
 import itertools
 import numpy as np
