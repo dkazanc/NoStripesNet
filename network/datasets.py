@@ -123,37 +123,37 @@ class WindowDataset(BaseDataset):
             return list(itertools.chain.from_iterable(window_list))
 
 
-
 class PairedWindowDataset(WindowDataset):
     def __init__(self, root, mode, tvt, windowWidth, size=256, shifts=5, stripeMetric=gradient_sum_tv, transform=None):
         super().__init__(root, mode, tvt, windowWidth, size=size, shifts=shifts, transform=transform)
         self.metric = stripeMetric
+        self.num_pairs = self.shifts // 2
+
+    def __len__(self):
+        return super().__len__() * self.num_pairs
 
     def __getitem__(self, item):
-        clean, *shifts = super().__getitem__(item)
-        centre = shifts[self.shifts // 2]
-
-        # to get best of both, loop through each shift and use one with lowest tv
-        bob = []
+        pair_idx = item % self.num_pairs
+        clean, *shifts = super().__getitem__(item // self.num_pairs)
+        plain_windows, stripe_windows = [], []
+        scores_dict = {}
         # loop through each window
-        for i in range(len(centre)):
-            centre_metric = self.metric(centre[i])
-            min_metric = centre_metric
-            min_idx = self.shifts // 2  # centre index
-            # loop through each shift
-            for j in range(self.shifts):
-                shift_metric = self.metric(shifts[j][i])
-                if shift_metric < min_metric:
-                    min_metric = shift_metric
-                    min_idx = j
-            bob.append(shifts[min_idx][i])
-
-        # return (clean, centre, best-of-both)
-        return clean, centre, bob
+        for w in range(len(clean)):
+            # calculate metric for each shift
+            for i in range(self.shifts):
+                m = self.metric(shifts[i][w])
+                scores_dict[m] = i
+            # pair minimum score (plain) with maximum score (stripe)
+            sorted_scores = sorted(scores_dict)
+            plain_idx = scores_dict[sorted_scores[pair_idx]]  # min score
+            stripe_idx = scores_dict[sorted_scores[-pair_idx-1]]  # max score
+            plain_windows.append(shifts[plain_idx][w])
+            stripe_windows.append(shifts[stripe_idx][w])
+        return clean, stripe_windows, plain_windows
 
     def getFullSinograms(self, item):
-        clean, centre, bob = self.__getitem__(item)
+        clean, stripe, plain = self.__getitem__(item)
         clean_full = self.combineWindows(clean)
-        centre_full = self.combineWindows(centre)
-        bob_full = self.combineWindows(bob)
-        return clean_full, centre_full, bob_full
+        stripe_full = self.combineWindows(stripe)
+        plain_full = self.combineWindows(plain)
+        return clean_full, stripe_full, plain_full

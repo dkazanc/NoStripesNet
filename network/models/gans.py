@@ -106,7 +106,7 @@ class BaseGAN:
         self.forward()
 
         # If testing, only forward pass needs to be ran
-        if self.mode != 'testing':
+        if self.mode != 'test':
             # Run backward pass for discriminator
             self.set_requires_grad(self.disc, True)
             self.optimizerD.zero_grad()

@@ -12,8 +12,7 @@ from torchvision import transforms
 from tomobar.methodsDIR import RecToolsDIR
 
 from datasets import BaseDataset, WindowDataset, PairedWindowDataset
-from simulator.data_io import loadTiff, rescale
-from visualizers import MetricVisualizer
+from visualizers import MetricVisualizer, getRectools2D
 import metrics
 
 
@@ -111,7 +110,40 @@ def test_metric(stripe_metrics, test_scores, width, size=256, num_shifts=5, visu
         print("Data not saved.")
 
 
+def findPairs(metric, size=256, num_shifts=5, width=25):
+    dataroot = os.path.join(os.pardir, 'data')
+    dataset = PairedWindowDataset(root=dataroot, mode='train', tvt=(3, 1, 1), windowWidth=25)
+    item = random.randint(0, len(dataset))
+    print(f"item: {item}")
+    clean, stripe, plain = dataset.getFullSinograms(item)
+    plt.figure(figsize=(10, 7))
+    plt.subplot(231)
+    plt.imshow(clean, cmap='gray')
+    plt.title("Clean")
+    plt.subplot(232)
+    plt.imshow(stripe, cmap='gray')
+    plt.title("Stripe")
+    plt.subplot(233)
+    plt.imshow(plain, cmap='gray')
+    plt.title("Plain")
+    rectools = getRectools2D(256)
+    clean_recon = rectools.FBP(clean)
+    stripe_recon = rectools.FBP(stripe)
+    plain_recon = rectools.FBP(plain)
+    plt.subplot(234)
+    plt.imshow(clean_recon, cmap='gray')
+    plt.title("Clean Recon")
+    plt.subplot(235)
+    plt.imshow(stripe_recon, cmap='gray')
+    plt.title("Stripe Recon")
+    plt.subplot(236)
+    plt.imshow(plain_recon, cmap='gray')
+    plt.title("Plain Recon")
+    plt.show()
+
+
 if __name__ == '__main__':
     # compareDifferentWidths(metrics.gradient_sum_tv, 10, 0.01, 0.2)
     # compareDifferentMetrics(metrics.all_metrics, width=18)
-    test_metric(metrics.gradient_sum_tv, metrics.test_metrics, width=18)
+    # test_metric(metrics.gradient_sum_tv, metrics.test_metrics, width=18)
+    findPairs(metrics.gradient_sum_max)
