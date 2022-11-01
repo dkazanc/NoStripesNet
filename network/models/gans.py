@@ -161,8 +161,6 @@ class WindowGAN(BaseGAN):
 
             self.fakeBs.append(self.fakeB)
 
-            print(f"\tWindow [{i+1}/{len(self.realAs)}]")
-
     def expandWidth(self):
         a_copy = self.realA.clone()
         b_copy = self.realB.clone()
