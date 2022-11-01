@@ -39,11 +39,13 @@ def batch_metric(metric, data1_batch, data2_batch):
     return np.mean([metric(data1.squeeze().numpy(), data2.squeeze().numpy()) for data1, data2 in zip(data1_batch, data2_batch)])
 
 
-def testBase(model, dataloader, metrics, display_each_batch=False):
+def testBase(model, dataloader, metrics, display_each_batch=False, verbose=True):
     vis = BaseGANVisualizer(model, dataloader, dataloader.dataset.size)
     overall_mean_scores = {metric.__name__: [] for metric in metrics}
+    print(f"Testing has begun. Batches: {len(dataloader)}, Steps/batch: {dataloader.batch_size}")
     for i, (clean, *shifts) in enumerate(dataloader):
-        print(f"Batch [{i+1}/{len(dataloader)}]")
+        if verbose:
+            print(f"\tBatch [{i+1}/{len(dataloader)}]")
         centre = shifts[num_shifts // 2]
         # Pre-process data
         model.preprocess(centre, clean)
@@ -55,15 +57,19 @@ def testBase(model, dataloader, metrics, display_each_batch=False):
 
         if display_each_batch:
             # Print test statistics for each batch
-            [print(f"{key}: {metric_scores[key]}", end='\t') for key in metric_scores]
+            [print(f"\t\t{key: <23}: {np.mean(overall_mean_scores[key])}") for key in overall_mean_scores]
             # Plot images each batch
-            print("\nPlotting batch...")
+            if verbose:
+                print(f"\t\tPlotting batch [{i+1}/{len(dataloader)}]...")
             vis.plot_real_vs_fake_batch()
-
+    print("Testing completed.")
     print("Total mean scores for all batches:")
-    [print(f"{key}: {np.mean(overall_mean_scores[key])}", end='\t') for key in overall_mean_scores]
-    print("\nPlotting last batch...")
+    [print(f"\t{key: <23}: {np.mean(overall_mean_scores[key])}") for key in overall_mean_scores]
+    if verbose:
+        print("Plotting last batch...")
     vis.plot_real_vs_fake_batch()
+    if verbose:
+        print("Reconstructing last batch...")
     vis.plot_real_vs_fake_recon()
 
 
@@ -156,7 +162,7 @@ if __name__ == '__main__':
         createGenParams(gen, model_file)
         model = BaseGAN(gen, mode='test')
         # Test
-        testBase(model, dataloader, ms, display_each_batch=display_each_batch)
+        testBase(model, dataloader, ms, display_each_batch=display_each_batch, verbose=verbose)
     elif model_name == 'window':
         # Create dataset and dataloader
         dataset = PairedWindowDataset(root=dataroot, mode='test', tvt=(3, 1, 1), size=size, shifts=num_shifts,
@@ -167,6 +173,6 @@ if __name__ == '__main__':
         createGenParams(gen, model_file)
         model = WindowGAN(windowWidth, gen, mode='test')
         # Test
-        testPairedWindows(model, dataloader, ms, display_each_batch=display_each_batch)
+        testPairedWindows(model, dataloader, ms, display_each_batch=display_each_batch, verbose=verbose)
     else:
         raise ValueError(f"Argument '--model' should be one of 'window', 'base'. Instead got '{model_name}'")
