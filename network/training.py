@@ -1,5 +1,6 @@
 import os
 import argparse
+import warnings
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -23,19 +24,39 @@ def saveModel(model, epoch, save_dir, save_name):
     torch.save({'epoch': epoch,
                 'gen_state_dict': model.gen.state_dict(),
                 'gen_optimizer_state_dict': model.optimizerG.state_dict(),
-                'gen_loss': model.lossG.item(),
+                'gen_loss': model.lossG,
                 'disc_state_dict': model.disc.state_dict(),
                 'disc_optimizer_state_dict': model.optimizerD.state_dict(),
-                'disc_loss': model.lossD.item()},
-               os.path.join(save_dir, f"{save_name}_{epoch}_sd.pt"))
+                'disc_loss': model.lossD},
+               os.path.join(save_dir, f"{save_name}_{epoch}.tar"))
 
 
-def trainBase(epochs, dataloader, model, save_every_epoch=False, save_dir=None, save_name=None, verbose=True):
-    dataset = dataloader.dataset.dataset
+def createModelParams(model, path):
+    if model_file is None:
+        print(f"Training new model from scratch.")
+        model.gen.apply(init_weights)
+        model.disc.apply(init_weights)
+        return 0
+    else:
+        print(f"Loading model from '{path}'")
+        checkpoint = torch.load(path)
+        model.gen.load_state_dict(checkpoint['gen_state_dict'])
+        model.optimizerG.load_state_dict(checkpoint['gen_optimizer_state_dict'])
+        model.lossG = checkpoint['gen_loss']
+        model.disc.load_state_dict(checkpoint['disc_state_dict'])
+        model.optimizerD.load_state_dict(checkpoint['disc_optimizer_state_dict'])
+        model.lossD = checkpoint['disc_loss']
+        return checkpoint['epoch'] + 1
+
+
+def trainBase(epochs, dataloader, model, save_every_epoch=False, save_dir=None, save_name=None, start_epoch=0,
+              verbose=True):
+    dataset = dataloader.dataset
     vis = BaseGANVisualizer(model, dataloader, dataset.size)
     num_batches = len(dataloader)
+    epochs += start_epoch
     print(f"Training has begun. Epochs: {epochs}, Batches: {num_batches}, Steps/batch: {dataloader.batch_size}")
-    for epoch in range(epochs):
+    for epoch in range(start_epoch, epochs):
         print(f"Epoch [{epoch + 1}/{epochs}]: Training model...")
         dataset.setMode('train')
         model.setMode('train')
@@ -95,13 +116,15 @@ def trainBase(epochs, dataloader, model, save_every_epoch=False, save_dir=None, 
         print("Training finished: Model not saved.")
 
 
-def trainPairedWindows(epochs, dataloader, model, save_every_epoch=False, save_dir=None, save_name=None, verbose=True):
+def trainPairedWindows(epochs, dataloader, model, save_every_epoch=False, save_dir=None, save_name=None, start_epoch=0,
+                       verbose=True):
     vis = PairedWindowGANVisualizer(model, dataloader, dataloader.dataset.size)
+    epochs += start_epoch
     num_batches = len(dataloader)
     total_step = num_batches * dataloader.batch_size * num_windows
     print(f"Training has begun. Epochs: {epochs}, Batches: {num_batches}, "
           f"Steps/batch: {num_windows * dataloader.batch_size}, Steps/epoch: {total_step}")
-    for epoch in range(epochs):
+    for epoch in range(start_epoch, epochs):
         print(f"Epoch [{epoch + 1}/{epochs}]: Training model...")
         for i, (clean, centre, _) in enumerate(dataloader):
             # Pre-process data
@@ -110,7 +133,7 @@ def trainPairedWindows(epochs, dataloader, model, save_every_epoch=False, save_d
             model.run_passes()
             # Print out some useful info
             if verbose:
-                print(f"Epoch [{epoch + 1}/{epochs}], Batch [{i+1}/{num_batches}], Loss_D: {model.lossD_values[-1]}, "
+                print(f"\tEpoch [{epoch + 1}/{epochs}], Batch [{i+1}/{num_batches}], Loss_D: {model.lossD_values[-1]}, "
                       f"Loss_G: {model.lossG_values[-1]}")
 
         # At the end of every epoch, run through validate dataset
@@ -179,6 +202,9 @@ def get_args():
                         help="Batch size used for loading data and for minibatches for Adam optimizer")
     parser.add_argument('-d', "--save-dir", type=str, default=None,
                         help="Directory to save models to once training has finished.")
+    parser.add_argument('-f', "--model-file", type=str, default=None,
+                        help="Location of model on disk. If specified, this will override other hyperparameters and "
+                             "load a pre-trained model from disk.")
     parser.add_argument("--save-every-epoch", action="store_true", help="Save model every epoch")
     parser.add_argument('-v', "--verbose", action="store_true", help="Print some extra information when running")
     return parser.parse_args()
@@ -188,6 +214,7 @@ if __name__ == '__main__':
     args = get_args()
     dataroot = args.root
     model_save_dir = args.save_dir
+    model_file = args.model_file
     size = args.size
     windowWidth = args.window_width
     num_windows = (int(np.sqrt(2) * size) // windowWidth + 1)
@@ -208,27 +235,31 @@ if __name__ == '__main__':
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
         # Create models
         disc = PairedWindowDiscriminator()
-        disc.apply(init_weights)
         gen = PairedWindowUNet()
-        gen.apply(init_weights)
         model = WindowGAN(windowWidth, gen, disc, mode='train', learning_rate=learning_rate, betas=betas)
+        start_epoch = createModelParams(model, model_file)
         # Train
+        if save_every_epoch and model_save_dir is None:
+            warnings.warn("Argument --save-every-epoch is True, but a save directory has not been specified. "
+                          "Models will not be saved at all!", RuntimeWarning)
         trainPairedWindows(epochs, dataloader, model, save_every_epoch=save_every_epoch, save_dir=model_save_dir,
-                           save_name=args.model, verbose=verbose)
+                           save_name=args.model, start_epoch=start_epoch, verbose=verbose)
     elif args.model == 'base':
         # Create dataset and dataloader
-        dataset = BaseDataset(root=dataroot, mode='train', tvt=(3, 1, 1), size=size, shifts=num_shifts,
+        dataset = BaseDataset(root=dataroot, mode='train', tvt=(4, 1, 5), size=size, shifts=num_shifts,
                               transform=transforms.ToTensor())
         sbst = Subset(dataset, range(256))
-        dataloader = DataLoader(sbst, batch_size=batch_size, shuffle=True)
+        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
         # Create models
         disc = SinoDiscriminator()
-        disc.apply(init_weights)
         gen = SinoUNet()
-        gen.apply(init_weights)
         model = BaseGAN(gen, disc, mode='train', learning_rate=learning_rate, betas=betas)
+        start_epoch = createModelParams(model, model_file)
         # Train
+        if save_every_epoch and model_save_dir is None:
+            warnings.warn("Argument '--save-every-epoch' is True, but a save directory has not been specified. "
+                          "Models will not be saved at all!", RuntimeWarning)
         trainBase(epochs, dataloader, model, save_every_epoch=save_every_epoch, save_dir=model_save_dir,
-                  save_name=args.model, verbose=verbose)
+                  save_name=args.model, start_epoch=start_epoch, verbose=verbose)
     else:
         raise ValueError(f"Argument '--model' should be one of 'window', 'base'. Instead got '{args.model}'")
