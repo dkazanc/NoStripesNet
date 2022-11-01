@@ -73,11 +73,13 @@ def testBase(model, dataloader, metrics, display_each_batch=False, verbose=True)
     vis.plot_real_vs_fake_recon()
 
 
-def testPairedWindows(model, dataloader, metrics, display_each_batch=False):
+def testPairedWindows(model, dataloader, metrics, display_each_batch=False, verbose=True):
     vis = PairedWindowGANVisualizer(model, dataloader, dataloader.dataset.size)
     overall_mean_scores = {metric.__name__: [] for metric in metrics}
+    print(f"Testing has begun. Batches: {len(dataloader)}, Steps/batch: {dataloader.batch_size}")
     for i, (clean, centre, _) in enumerate(dataloader):
-        print(f"Batch [{i+1}/{len(dataloader)}]")
+        if verbose:
+            print(f"\tBatch [{i + 1}/{len(dataloader)}]")
         # Pre-process data
         model.preprocess(centre, clean)
         # Run forward and backward passes
@@ -94,13 +96,17 @@ def testPairedWindows(model, dataloader, metrics, display_each_batch=False):
             [print(f"{key}: {metric_scores[key]}", end='\t') for key in metric_scores]
             print()
             # Plot images each batch
-            print("\nPlotting batch...")
+            if verbose:
+                print(f"\t\tPlotting batch [{i+1}/{len(dataloader)}]...")
             vis.plot_real_vs_fake_recon()
-
+    print("Testing completed.")
     print("Total mean scores for all batches:")
-    [print(f"{key}: {np.mean(overall_mean_scores[key])}", end='\t') for key in overall_mean_scores]
-    print("\nPlotting last batch...")
+    [print(f"\t{key: <23}: {np.mean(overall_mean_scores[key])}") for key in overall_mean_scores]
+    if verbose:
+        print("Plotting last batch...")
     vis.plot_real_vs_fake_batch()
+    if verbose:
+        print("Reconstructing last batch...")
     vis.plot_real_vs_fake_recon()
 
 
