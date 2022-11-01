@@ -104,8 +104,8 @@ def get_args():
                         help="Path to input data used in network")
     parser.add_argument('-m', "--model", type=str, default='window',
                         help="Type of model to test. Must be one of 'window' or 'base'")
-    parser.add_argument('-d', "--model-dir", type=str, default=None,
-                        help="Directory from which to load models for testing")
+    parser.add_argument('-f', "--model-file", type=str, default=None,
+                        help="Path from which to load models for testing")
     parser.add_argument('-N', "--size", type=int, default=256,
                         help="Size of image generated (cubic). Also height of sinogram")
     parser.add_argument('-s', "--shifts", type=int, default=5,
@@ -126,7 +126,7 @@ if __name__ == '__main__':
     args = get_args()
     dataroot = args.root
     model_name = args.model
-    model_dir = args.model_dir
+    model_file = args.model_file
     size = args.size
     windowWidth = args.window_width
     num_windows = (int(np.sqrt(2) * size) // windowWidth + 1)
@@ -153,7 +153,7 @@ if __name__ == '__main__':
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
         # Create models
         gen = SinoUNet()
-        createGenParams(gen, model_dir)
+        createGenParams(gen, model_file)
         model = BaseGAN(gen, mode='test')
         # Test
         testBase(model, dataloader, ms, display_each_batch=display_each_batch)
@@ -164,7 +164,7 @@ if __name__ == '__main__':
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
         # Create models
         gen = PairedWindowUNet()
-        createGenParams(gen, model_dir)
+        createGenParams(gen, model_file)
         model = WindowGAN(windowWidth, gen, mode='test')
         # Test
         testPairedWindows(model, dataloader, ms, display_each_batch=display_each_batch)
