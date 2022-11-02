@@ -10,10 +10,10 @@ import torchvision.transforms as transforms
 import torchvision.utils as utils
 
 from models import BaseGAN, WindowGAN, init_weights
-from models.discriminators import SinoDiscriminator, PairedWindowDiscriminator
-from models.generators import SinoUNet, PairedWindowUNet
+from models.discriminators import SinoDiscriminator, PairedWindowDiscriminator, PairedFullDiscriminator
+from models.generators import SinoUNet, PairedWindowUNet, PairedFullUNet
 from visualizers import BaseGANVisualizer, PairedWindowGANVisualizer
-from datasets import PairedWindowDataset, BaseDataset
+from datasets import PairedWindowDataset, BaseDataset, PairedFullDataset
 
 
 # In the future this should be in NoStripesNet/simulator/data_io.py
@@ -46,25 +46,53 @@ def createModelParams(model, path):
         model.disc.load_state_dict(checkpoint['disc_state_dict'])
         model.optimizerD.load_state_dict(checkpoint['disc_optimizer_state_dict'])
         model.lossD = checkpoint['disc_loss']
-        return checkpoint['epoch'] + 1
+        return checkpoint['epoch']
 
 
-def trainBase(epochs, dataloader, model, save_every_epoch=False, save_dir=None, save_name=None, start_epoch=0,
-              verbose=True):
-    dataset = dataloader.dataset
-    vis = BaseGANVisualizer(model, dataloader, dataset.size)
-    num_batches = len(dataloader)
+def getTrainingData(dataset, data):
+    if isinstance(dataset, BaseDataset):
+        clean, *shifts = data
+        centre = shifts[len(shifts) // 2]
+        return centre, clean
+    elif isinstance(dataset, PairedWindowDataset):
+        clean, stripe, plain = data
+        return stripe, clean
+    elif isinstance(dataset, PairedFullDataset):
+        clean, stripe, plain = data
+        return stripe, clean
+    else:
+        raise ValueError(f"Dataset '{dataset}' not recognised.")
+
+
+def getVisualizer(model, dataset, size):
+    if isinstance(dataset, BaseDataset):
+        return BaseGANVisualizer(model, dataset, size)
+    elif isinstance(dataset, PairedWindowDataset):
+        return PairedWindowGANVisualizer(model, dataset, size)
+    elif isinstance(dataset, PairedFullDataset):
+        return BaseGANVisualizer(model, dataset, size)
+    else:
+        raise ValueError(f"Dataset '{dataset}' not recognised.")
+
+
+def train(model, dataloader, epochs, save_every_epoch=False, save_name=None, save_dir=None, start_epoch=0, verbose=True):
+    if isinstance(dataloader.dataset, Subset):
+        dataset = dataloader.dataset.dataset
+    else:
+        dataset = dataloader.dataset
     epochs += start_epoch
+    num_batches = len(dataloader)
+    vis = getVisualizer(model, dataset, dataset.size)
     print(f"Training has begun. Epochs: {epochs}, Batches: {num_batches}, Steps/batch: {dataloader.batch_size}")
     for epoch in range(start_epoch, epochs):
         print(f"Epoch [{epoch + 1}/{epochs}]: Training model...")
         dataset.setMode('train')
         model.setMode('train')
         num_batches = len(dataloader)
-        for i, (clean, *shifts) in enumerate(dataloader):
-            centre = shifts[num_shifts // 2]
+        for i, data in enumerate(dataloader):
+            inpt, target = getTrainingData(dataset, data)
             # Pre-process data
-            model.preprocess(centre, clean)
+            model.preprocess(inpt, target)
             # Run forward and backward passes
             model.run_passes()
             # Print out some useful info
@@ -79,10 +107,10 @@ def trainBase(epochs, dataloader, model, save_every_epoch=False, save_dir=None, 
         num_batches = len(dataloader)
         validation_lossesG = torch.Tensor(num_batches)
         validation_lossesD = torch.Tensor(num_batches)
-        for i, (clean, *shifts) in enumerate(dataloader):
-            centre = shifts[num_shifts // 2]
+        for i, data in enumerate(dataloader):
+            inpt, target = getTrainingData(dataset, data)
             # Pre-process data
-            model.preprocess(centre, clean)
+            model.preprocess(inpt, target)
             # Run forward and backward passes
             model.run_passes()
             # Print out some useful info
@@ -104,70 +132,6 @@ def trainBase(epochs, dataloader, model, save_every_epoch=False, save_dir=None, 
         else:
             if verbose:
                 print(f"Epoch [{epoch+1}/{epochs}]: Model not saved.")
-    # Once training has finished, plot some data and save model state
-    vis.plot_losses()
-    vis.plot_real_vs_fake_batch()
-    vis.plot_real_vs_fake_recon()
-    # Save models if user desires and save_every_epoch is False
-    if not save_every_epoch and input("Save model? (y/[n]): ") == 'y':
-        saveModel(model, epochs, save_dir, save_name)
-        print(f"Training finished: Model '{save_name}_{epochs}' saved to '{save_dir}'")
-    else:
-        print("Training finished: Model not saved.")
-
-
-def trainPairedWindows(epochs, dataloader, model, save_every_epoch=False, save_dir=None, save_name=None, start_epoch=0,
-                       verbose=True):
-    vis = PairedWindowGANVisualizer(model, dataloader, dataloader.dataset.size)
-    epochs += start_epoch
-    num_batches = len(dataloader)
-    total_step = num_batches * dataloader.batch_size * num_windows
-    print(f"Training has begun. Epochs: {epochs}, Batches: {num_batches}, "
-          f"Steps/batch: {num_windows * dataloader.batch_size}, Steps/epoch: {total_step}")
-    for epoch in range(start_epoch, epochs):
-        print(f"Epoch [{epoch + 1}/{epochs}]: Training model...")
-        for i, (clean, centre, _) in enumerate(dataloader):
-            # Pre-process data
-            model.preprocess(centre, clean)
-            # Run forward and backward passes
-            model.run_passes()
-            # Print out some useful info
-            if verbose:
-                print(f"\tEpoch [{epoch + 1}/{epochs}], Batch [{i+1}/{num_batches}], Loss_D: {model.lossD_values[-1]}, "
-                      f"Loss_G: {model.lossG_values[-1]}")
-
-        # At the end of every epoch, run through validate dataset
-        print(f"Epoch [{epoch + 1}/{epochs}]: Training finished. Validating model...")
-        dataloader.dataset.setMode('validate')
-        model.setMode('validate')
-        num_batches = len(dataloader)
-        validation_lossesG = torch.Tensor(num_batches)
-        validation_lossesD = torch.Tensor(num_batches)
-        for i, (clean, centre, _) in enumerate(dataloader):
-            # Pre-process data
-            model.preprocess(centre, clean)
-            # Run forward and backward passes
-            model.run_passes()
-            # Print out some useful info
-            if verbose:
-                print(f"\tEpoch [{epoch + 1}/{epochs}], Batch [{i + 1}/{num_batches}], Loss_D: {model.lossD.item()}, "
-                      f"Loss_G: {model.lossG.item()}")
-            # Collate validation losses
-            validation_lossesG[i] = model.lossG.item()
-            validation_lossesD[i] = model.lossD.item()
-        # Step scheduler with max of all validation losses
-        # best practice? - actually not sure if matters, it's all relative anyway
-        model.schedulerG.step(validation_lossesG.max())
-        model.schedulerD.step(validation_lossesD.max())
-        print(f"Epoch [{epoch + 1}/{epochs}]: Validation finished.")
-
-        # At the end of every epoch, save model state
-        if save_every_epoch and save_dir is not None and save_name is not None:
-            saveModel(model, epoch, save_dir, save_name)
-            print(f"Epoch [{epoch + 1}/{epochs}]: Model '{save_name}_{epoch}' saved to '{save_dir}'")
-        else:
-            if verbose:
-                print(f"Epoch [{epoch + 1}/{epochs}]: Model not saved.")
     # Once training has finished, plot some data and save model state
     vis.plot_losses()
     vis.plot_real_vs_fake_batch()
@@ -238,28 +202,33 @@ if __name__ == '__main__':
         gen = PairedWindowUNet()
         model = WindowGAN(windowWidth, gen, disc, mode='train', learning_rate=learning_rate, betas=betas)
         start_epoch = createModelParams(model, model_file)
-        # Train
-        if save_every_epoch and model_save_dir is None:
-            warnings.warn("Argument --save-every-epoch is True, but a save directory has not been specified. "
-                          "Models will not be saved at all!", RuntimeWarning)
-        trainPairedWindows(epochs, dataloader, model, save_every_epoch=save_every_epoch, save_dir=model_save_dir,
-                           save_name=args.model, start_epoch=start_epoch, verbose=verbose)
     elif args.model == 'base':
         # Create dataset and dataloader
         dataset = BaseDataset(root=dataroot, mode='train', tvt=(4, 1, 5), size=size, shifts=num_shifts,
                               transform=transforms.ToTensor())
-        sbst = Subset(dataset, range(256))
-        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+        sbst = Subset(dataset, range(10))
+        dataloader = DataLoader(sbst, batch_size=batch_size, shuffle=True)
         # Create models
         disc = SinoDiscriminator()
         gen = SinoUNet()
         model = BaseGAN(gen, disc, mode='train', learning_rate=learning_rate, betas=betas)
         start_epoch = createModelParams(model, model_file)
-        # Train
-        if save_every_epoch and model_save_dir is None:
-            warnings.warn("Argument '--save-every-epoch' is True, but a save directory has not been specified. "
-                          "Models will not be saved at all!", RuntimeWarning)
-        trainBase(epochs, dataloader, model, save_every_epoch=save_every_epoch, save_dir=model_save_dir,
-                  save_name=args.model, start_epoch=start_epoch, verbose=verbose)
+    elif args.model == 'full':
+        # Create dataset and dataloader
+        dataset = PairedFullDataset(root=dataroot, mode='train', tvt=(1, 1, 8), size=size, shifts=num_shifts,
+                                    windowWidth=windowWidth, transform=transforms.ToTensor())
+        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+        # Create models
+        disc = PairedFullDiscriminator()
+        gen = PairedFullUNet()
+        model = BaseGAN(gen, disc, mode='train', learning_rate=learning_rate, betas=betas)
+        start_epoch = createModelParams(model, model_file)
     else:
         raise ValueError(f"Argument '--model' should be one of 'window', 'base'. Instead got '{args.model}'")
+
+    # Train
+    if save_every_epoch and model_save_dir is None:
+        warnings.warn("Argument --save-every-epoch is True, but a save directory has not been specified. "
+                      "Models will not be saved at all!", RuntimeWarning)
+    train(model, dataloader, epochs, save_every_epoch=save_every_epoch, save_dir=model_save_dir,
+          save_name=args.model, start_epoch=start_epoch, verbose=verbose)

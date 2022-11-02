@@ -37,13 +37,11 @@ def batch_reconstruct(batch, size, device='cpu'):
 
 
 class BaseGANVisualizer:
-    def __init__(self, model, dataloader, size):
+    def __init__(self, model, dataset, size):
         self.model = model
         self.gen = self.model.gen
         self.disc = self.model.disc
-        self.dataloader = dataloader
-        self.batch_size = dataloader.batch_size
-        self.dataset = dataloader.dataset
+        self.dataset = dataset
         self.size = size
 
     def plot_losses(self):
@@ -109,8 +107,8 @@ class BaseGANVisualizer:
 
 
 class PairedWindowGANVisualizer(BaseGANVisualizer):
-    def __init__(self, model, dataloader, size):
-        super().__init__(model, dataloader, size)
+    def __init__(self, model, dataset, size):
+        super().__init__(model, dataset, size)
 
     def plot_real_vs_fake_batch(self):
         self.model.realA = self.dataset.combineWindows(self.model.realAs)

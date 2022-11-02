@@ -159,3 +159,16 @@ class PairedWindowDataset(WindowDataset):
         stripe_full = self.combineWindows(stripe)
         plain_full = self.combineWindows(plain)
         return clean_full, stripe_full, plain_full
+
+
+class PairedFullDataset(PairedWindowDataset):
+    def __init__(self, root, mode, tvt, windowWidth, size=256, shifts=5, stripeMetric=gradient_sum_tv, transform=None):
+        super().__init__(root, mode, tvt, windowWidth, size=size, shifts=shifts, stripeMetric=stripeMetric,
+                         transform=transform)
+
+    def __getitem__(self, item):
+        clean, stripe, plain = super().__getitem__(item)
+        clean_full = self.combineWindows(clean)
+        stripe_full = self.combineWindows(stripe)
+        plain_full = self.combineWindows(plain)
+        return clean_full, stripe_full, plain_full
