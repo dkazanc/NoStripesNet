@@ -50,14 +50,14 @@ def createModelParams(model, path):
 
 
 def getTrainingData(dataset, data):
-    if isinstance(dataset, BaseDataset):
+    if type(dataset) == BaseDataset:
         clean, *shifts = data
         centre = shifts[len(shifts) // 2]
         return centre, clean
-    elif isinstance(dataset, PairedWindowDataset):
+    elif type(dataset) == PairedWindowDataset:
         clean, stripe, plain = data
         return stripe, clean
-    elif isinstance(dataset, PairedFullDataset):
+    elif type(dataset) == PairedFullDataset:
         clean, stripe, plain = data
         return stripe, clean
     else:
@@ -65,11 +65,11 @@ def getTrainingData(dataset, data):
 
 
 def getVisualizer(model, dataset, size):
-    if isinstance(dataset, BaseDataset):
+    if type(dataset) == BaseDataset:
         return BaseGANVisualizer(model, dataset, size)
-    elif isinstance(dataset, PairedWindowDataset):
+    elif type(dataset) == PairedWindowDataset:
         return PairedWindowGANVisualizer(model, dataset, size)
-    elif isinstance(dataset, PairedFullDataset):
+    elif type(dataset) == PairedFullDataset:
         return BaseGANVisualizer(model, dataset, size)
     else:
         raise ValueError(f"Dataset '{dataset}' not recognised.")
