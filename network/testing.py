@@ -33,7 +33,7 @@ def batch_metric(metric, data1_batch, data2_batch):
     return np.mean([metric(data1.squeeze().numpy(), data2.squeeze().numpy()) for data1, data2 in zip(data1_batch, data2_batch)])
 
 
-def test(model, dataloader, metrics, display_each_batch=False, verbose=True):
+def test(model, dataloader, metrics, display_each_batch=False, verbose=True, visual_only=False):
     if isinstance(dataloader.dataset, Subset):
         dataset = dataloader.dataset.dataset
     else:
@@ -42,7 +42,7 @@ def test(model, dataloader, metrics, display_each_batch=False, verbose=True):
     overall_mean_scores = {metric.__name__: [] for metric in metrics}
     print(f"Testing has begun. Batches: {len(dataloader)}, Steps/batch: {dataloader.batch_size}")
     for i, data in enumerate(dataloader):
-        if verbose:
+        if verbose and not visual_only:
             print(f"\tBatch [{i + 1}/{len(dataloader)}]")
         inpt, target = getTrainingData(dataset, data)
         # Pre-process data
@@ -53,6 +53,9 @@ def test(model, dataloader, metrics, display_each_batch=False, verbose=True):
         if isinstance(model, WindowGAN):
             model.realB = dataset.combineWindows(model.realBs)
             model.fakeB = dataset.combineWindows(model.fakeBs)
+
+        if visual_only:
+            break
 
         metric_scores = {metric.__name__: batch_metric(metric, model.realB, model.fakeB) for metric in metrics}
         [overall_mean_scores[key].append(metric_scores[key]) for key in metric_scores]
@@ -65,8 +68,9 @@ def test(model, dataloader, metrics, display_each_batch=False, verbose=True):
                 print(f"\t\tPlotting batch [{i + 1}/{len(dataloader)}]...")
             vis.plot_real_vs_fake_batch()
     print("Testing completed.")
-    print("Total mean scores for all batches:")
-    [print(f"\t{key: <23}: {np.mean(overall_mean_scores[key])}") for key in overall_mean_scores]
+    if not visual_only:
+        print("Total mean scores for all batches:")
+        [print(f"\t{key: <23}: {np.mean(overall_mean_scores[key])}") for key in overall_mean_scores]
     if verbose:
         print("Plotting last batch...")
     vis.plot_real_vs_fake_batch()
@@ -95,6 +99,8 @@ def get_args():
                         help="Metrics used to evaluate model.")
     parser.add_argument("--display-each-batch", action="store_true",
                         help="Plot each batch of generated images during testing")
+    parser.add_argument("--visual-only", action="store_true",
+                        help="Don't calculate metric scores; only display batches of images")
     parser.add_argument('-v', "--verbose", action="store_true", help="Print some extra information when running")
     return parser.parse_args()
 
@@ -122,6 +128,7 @@ if __name__ == '__main__':
 
     display_each_batch = args.display_each_batch
     verbose = args.verbose
+    visual = args.visual_only
 
     if model_name == 'base':
         # Create dataset and dataloader
@@ -152,4 +159,4 @@ if __name__ == '__main__':
         raise ValueError(f"Argument '--model' should be one of 'window', 'base'. Instead got '{model_name}'")
 
     # Test
-    test(model, dataloader, ms, display_each_batch=display_each_batch, verbose=verbose)
+    test(model, dataloader, ms, display_each_batch=display_each_batch, verbose=verbose, visual_only=visual)
