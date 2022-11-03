@@ -4,14 +4,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 import torchvision.transforms as transforms
 import torchvision.utils as utils
 
+from training import getVisualizer, getTrainingData
 from models import BaseGAN, WindowGAN, init_weights
-from models.discriminators import SinoDiscriminator, PairedWindowDiscriminator
-from models.generators import SinoUNet, PairedWindowUNet
-from datasets import PairedWindowDataset, BaseDataset
+from models.generators import SinoUNet, PairedWindowUNet, PairedFullUNet
+from datasets import PairedWindowDataset, BaseDataset, PairedFullDataset
 from visualizers import BaseGANVisualizer, PairedWindowGANVisualizer
 from metrics import *
 
@@ -30,27 +30,29 @@ def createGenParams(gen, path):
 
 
 def batch_metric(metric, data1_batch, data2_batch):
-    # scores = []
-    # for data1, data2 in zip(data1_batch, data2_batch):
-    #     m = metric(data1.squeeze().numpy(), data2.squeeze().numpy())
-    #     scores.append(m)
-    # r = np.mean(scores)
-    # return r
     return np.mean([metric(data1.squeeze().numpy(), data2.squeeze().numpy()) for data1, data2 in zip(data1_batch, data2_batch)])
 
 
-def testBase(model, dataloader, metrics, display_each_batch=False, verbose=True):
-    vis = BaseGANVisualizer(model, dataloader, dataloader.dataset.size)
+def test(model, dataloader, metrics, display_each_batch=False, verbose=True):
+    if isinstance(dataloader.dataset, Subset):
+        dataset = dataloader.dataset.dataset
+    else:
+        dataset = dataloader.dataset
+    vis = getVisualizer(model, dataset, dataset.size)
     overall_mean_scores = {metric.__name__: [] for metric in metrics}
     print(f"Testing has begun. Batches: {len(dataloader)}, Steps/batch: {dataloader.batch_size}")
-    for i, (clean, *shifts) in enumerate(dataloader):
+    for i, data in enumerate(dataloader):
         if verbose:
-            print(f"\tBatch [{i+1}/{len(dataloader)}]")
-        centre = shifts[num_shifts // 2]
+            print(f"\tBatch [{i + 1}/{len(dataloader)}]")
+        inpt, target = getTrainingData(dataset, data)
         # Pre-process data
-        model.preprocess(centre, clean)
+        model.preprocess(inpt, target)
         # Run forward and backward passes
         model.run_passes()
+
+        if isinstance(model, WindowGAN):
+            model.realB = dataset.combineWindows(model.realBs)
+            model.fakeB = dataset.combineWindows(model.fakeBs)
 
         metric_scores = {metric.__name__: batch_metric(metric, model.realB, model.fakeB) for metric in metrics}
         [overall_mean_scores[key].append(metric_scores[key]) for key in metric_scores]
@@ -60,45 +62,8 @@ def testBase(model, dataloader, metrics, display_each_batch=False, verbose=True)
             [print(f"\t\t{key: <23}: {np.mean(overall_mean_scores[key])}") for key in overall_mean_scores]
             # Plot images each batch
             if verbose:
-                print(f"\t\tPlotting batch [{i+1}/{len(dataloader)}]...")
+                print(f"\t\tPlotting batch [{i + 1}/{len(dataloader)}]...")
             vis.plot_real_vs_fake_batch()
-    print("Testing completed.")
-    print("Total mean scores for all batches:")
-    [print(f"\t{key: <23}: {np.mean(overall_mean_scores[key])}") for key in overall_mean_scores]
-    if verbose:
-        print("Plotting last batch...")
-    vis.plot_real_vs_fake_batch()
-    if verbose:
-        print("Reconstructing last batch...")
-    vis.plot_real_vs_fake_recon()
-
-
-def testPairedWindows(model, dataloader, metrics, display_each_batch=False, verbose=True):
-    vis = PairedWindowGANVisualizer(model, dataloader, dataloader.dataset.size)
-    overall_mean_scores = {metric.__name__: [] for metric in metrics}
-    print(f"Testing has begun. Batches: {len(dataloader)}, Steps/batch: {dataloader.batch_size}")
-    for i, (clean, centre, _) in enumerate(dataloader):
-        if verbose:
-            print(f"\tBatch [{i + 1}/{len(dataloader)}]")
-        # Pre-process data
-        model.preprocess(centre, clean)
-        # Run forward and backward passes
-        model.run_passes()
-
-        model.realB = dataloader.dataset.combineWindows(model.realBs)
-        model.fakeB = dataloader.dataset.combineWindows(model.fakeBs)
-
-        metric_scores = {metric.__name__: batch_metric(metric, model.realB, model.fakeB) for metric in metrics}
-        [overall_mean_scores[key].append(metric_scores[key]) for key in metric_scores]
-
-        if display_each_batch:
-            # Print test statistics for each batch
-            [print(f"{key}: {metric_scores[key]}", end='\t') for key in metric_scores]
-            print()
-            # Plot images each batch
-            if verbose:
-                print(f"\t\tPlotting batch [{i+1}/{len(dataloader)}]...")
-            vis.plot_real_vs_fake_recon()
     print("Testing completed.")
     print("Total mean scores for all batches:")
     [print(f"\t{key: <23}: {np.mean(overall_mean_scores[key])}") for key in overall_mean_scores]
@@ -167,8 +132,6 @@ if __name__ == '__main__':
         gen = SinoUNet()
         createGenParams(gen, model_file)
         model = BaseGAN(gen, mode='test')
-        # Test
-        testBase(model, dataloader, ms, display_each_batch=display_each_batch, verbose=verbose)
     elif model_name == 'window':
         # Create dataset and dataloader
         dataset = PairedWindowDataset(root=dataroot, mode='test', tvt=(3, 1, 1), size=size, shifts=num_shifts,
@@ -178,7 +141,15 @@ if __name__ == '__main__':
         gen = PairedWindowUNet()
         createGenParams(gen, model_file)
         model = WindowGAN(windowWidth, gen, mode='test')
-        # Test
-        testPairedWindows(model, dataloader, ms, display_each_batch=display_each_batch, verbose=verbose)
+    elif model_name == 'full':
+        dataset = PairedFullDataset(root=dataroot, mode='test', tvt=(3, 1, 1), size=size, shifts=num_shifts,
+                                    windowWidth=windowWidth, transform=transforms.ToTensor())
+        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+        gen = PairedFullUNet()
+        createGenParams(gen, model_file)
+        model = BaseGAN(gen, mode='test')
     else:
         raise ValueError(f"Argument '--model' should be one of 'window', 'base'. Instead got '{model_name}'")
+
+    # Test
+    test(model, dataloader, ms, display_each_batch=display_each_batch, verbose=verbose)
