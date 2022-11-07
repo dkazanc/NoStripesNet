@@ -3,6 +3,12 @@ import numpy as np
 import warnings
 import torch
 import torch.nn as nn
+from scipy.ndimage import median_filter, uniform_filter
+from skimage.metrics import structural_similarity as ssim
+
+
+def normalise(data):
+    return (data - data.min()) / (data.max() - data.min())
 
 
 def residual(data):
@@ -54,6 +60,40 @@ def grad_sum_z_max(data):
     return np.max(zscore(np.sum(np.gradient(data, axis=1), axis=0)))
 
 
+def mask_1d(data, R):
+    # calculate low-pass component
+    low_pass = uniform_filter(data, size=4)
+
+    # calculate abs difference between intensity and low-pass COLUMN-WISE
+    data_1d = np.mean(data - low_pass, axis=0)
+
+    # apply median filter
+    data_filter = median_filter(data_1d, size=12)
+
+    # normalize by dividing sino with filtered sino
+    data_norm = np.square(data_1d - data_filter)
+
+    # locate stripe artifact using Nghia's method
+    npoint = len(data_norm)
+    list_sort = np.sort(data_norm)
+    listx = np.arange(0, npoint, 1.0)
+    ndrop = np.int16(0.25 * npoint)
+    (slope, intercept) = np.polyfit(listx[ndrop:-ndrop - 1], list_sort[ndrop:-ndrop - 1], 1)
+    y_end = intercept + slope * listx[-1]
+    noise_level = np.abs(y_end - intercept)
+    noise_level = np.clip(noise_level, 1e-6, None)
+    val1 = np.abs(list_sort[-1] - y_end) / noise_level
+    val2 = np.abs(intercept - list_sort[0]) / noise_level
+    list_mask = np.zeros(npoint, dtype=np.float32)
+    if val1 >= R:
+        upper_thresh = y_end + noise_level * R * 0.5
+        list_mask[data_norm > upper_thresh] = 1.0
+    if val2 >= R:
+        lower_thresh = intercept - noise_level * R * 0.5
+        list_mask[data_norm <= lower_thresh] = 1.0
+    return list_mask
+
+
 stripe_detection_metrics = [sum_max, total_variation2D, gradient_sum_max, gradient_tv, gradient_sum_tv,
                             grad_sum_res_max, grad_sum_z_max]
 
@@ -92,6 +132,8 @@ def IoU(data1, data2):
 def BCELoss(data1, data2):
     target = torch.tensor(data1)
     inp = torch.tensor(data2)
+    target = normalise(target)
+    inp = normalise(inp)
     out_tensor = nn.BCELoss(reduction='mean')(inp, target)
     return out_tensor.numpy()
 
@@ -102,4 +144,8 @@ def histogram_intersection(data1, data2, bins=10):
     return np.sum([min(h1, h2) for h1, h2 in zip(hist1, hist2)])
 
 
-test_metrics = [l1, l2, sum_square_diff, sum_diff_grad, diceCoef, IoU, BCELoss, histogram_intersection]
+def struct_sim(data1, data2):
+    return ssim(data1, data2, data_range=data2.max() - data2.min())
+
+
+test_metrics = [l1, l2, sum_square_diff, sum_diff_grad, diceCoef, IoU, BCELoss, histogram_intersection, struct_sim]
