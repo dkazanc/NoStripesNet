@@ -110,7 +110,14 @@ Whole Sinograms:<br>
 The window stripe artifacts are now gone; however, there is still a loss of resolution.<br>
 Additionally, other types of artifacts can be seen around the details of the sample.<br>
 
-More experimentation is being done to reduce these artifacts and increase the resolution.
+In order to stop this loss of resolution a new method is being developed, inspired by that in [\[6\]](#references).<br>
+Instead of generating the entire sinogram, we "mask" out the parts of the sinogram that contain stripes,
+and train the network to only generate data in those parts of the image.<br>
+This means that most of the sinogram data will stay the same - only the parts that contain stripes will be changed.
+The hope is that this will increase the resolution.<br>
+
+This new method requires an accurate way of detecting the location of stripes within a sinogram.
+Research is being done into the best way of achieving this.
 
 
 ## References
@@ -124,3 +131,5 @@ More experimentation is being done to reduce these artifacts and increase the re
 [4] [Mirza, M. and Osindero, S., 2014. Conditional generative adversarial nets. arXiv preprint arXiv:1411.1784](https://doi.org/10.48550/arXiv.1411.1784)
 <br><br>
 [5] [Isola, P., Zhu, J.Y., Zhou, T. and Efros, A.A., 2017. Image-to-image translation with conditional adversarial networks. In Proceedings of the IEEE conference on computer vision and pattern recognition (pp. 1125-1134).](https://doi.org/10.48550/arXiv.1611.07004)
+<br><br>
+[6] [Ghani, M.U. and Karl, W.C., 2019. Fast enhanced CT metal artifact reduction using data domain deep learning. IEEE Transactions on Computational Imaging, 6, pp.181-193.](https://doi.org/10.48550/arXiv.1904.04691)
