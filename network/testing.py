@@ -99,6 +99,8 @@ def get_args():
                         help="Metrics used to evaluate model.")
     parser.add_argument("--display-each-batch", action="store_true",
                         help="Plot each batch of generated images during testing")
+    parser.add_argument("--tvt", type=int, default=[3, 1, 1], nargs=3,
+                        help="Train/Validate/Test split, entered as a ratio")
     parser.add_argument("--visual-only", action="store_true",
                         help="Don't calculate metric scores; only display batches of images")
     parser.add_argument('-v', "--verbose", action="store_true", help="Print some extra information when running")
@@ -116,6 +118,7 @@ if __name__ == '__main__':
 
     num_shifts = args.shifts
     batch_size = args.batch_size
+    tvt = args.tvt
 
     if args.metrics == 'all':
         ms = test_metrics
@@ -132,7 +135,7 @@ if __name__ == '__main__':
 
     if model_name == 'base':
         # Create dataset and dataloader
-        dataset = BaseDataset(root=dataroot, mode='test', tvt=(3, 1, 1), size=size, shifts=num_shifts,
+        dataset = BaseDataset(root=dataroot, mode='test', tvt=tvt, size=size, shifts=num_shifts,
                               transform=transforms.ToTensor())
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
         # Create models
@@ -141,7 +144,7 @@ if __name__ == '__main__':
         model = BaseGAN(gen, mode='test')
     elif model_name == 'window':
         # Create dataset and dataloader
-        dataset = PairedWindowDataset(root=dataroot, mode='test', tvt=(3, 1, 1), size=size, shifts=num_shifts,
+        dataset = PairedWindowDataset(root=dataroot, mode='test', tvt=tvt, size=size, shifts=num_shifts,
                                       windowWidth=windowWidth, transform=transforms.ToTensor())
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
         # Create models
@@ -149,7 +152,7 @@ if __name__ == '__main__':
         createGenParams(gen, model_file)
         model = WindowGAN(windowWidth, gen, mode='test')
     elif model_name == 'full':
-        dataset = PairedFullDataset(root=dataroot, mode='test', tvt=(3, 1, 1), size=size, shifts=num_shifts,
+        dataset = PairedFullDataset(root=dataroot, mode='test', tvt=tvt, size=size, shifts=num_shifts,
                                     windowWidth=windowWidth, transform=transforms.ToTensor())
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
         gen = PairedFullUNet()

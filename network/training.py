@@ -1,4 +1,5 @@
 import os
+import random
 import argparse
 import warnings
 import numpy as np
@@ -169,6 +170,10 @@ def get_args():
     parser.add_argument('-f', "--model-file", type=str, default=None,
                         help="Location of model on disk. If specified, this will override other hyperparameters and "
                              "load a pre-trained model from disk.")
+    parser.add_argument("--tvt", type=int, default=[3, 1, 1], nargs=3,
+                        help="Train/Validate/Test split, entered as a ratio")
+    parser.add_argument("--subset", type=int, default=None,
+                        help="Option to use a subset of the full dataset")
     parser.add_argument("--save-every-epoch", action="store_true", help="Save model every epoch")
     parser.add_argument('-v', "--verbose", action="store_true", help="Print some extra information when running")
     return parser.parse_args()
@@ -188,36 +193,34 @@ if __name__ == '__main__':
     betas = args.betas
     num_shifts = args.shifts
     batch_size = args.batch_size
+    tvt = args.tvt
+    sbst_size = args.subset
 
     save_every_epoch = args.save_every_epoch
     verbose = args.verbose
 
     if args.model == 'window':
-        # Create dataset and dataloader
-        dataset = PairedWindowDataset(root=dataroot, mode='train', tvt=(3, 1, 1), size=size, shifts=num_shifts,
+        # Create dataset
+        dataset = PairedWindowDataset(root=dataroot, mode='train', tvt=tvt, size=size, shifts=num_shifts,
                                       windowWidth=windowWidth, transform=transforms.ToTensor())
-        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
         # Create models
         disc = PairedWindowDiscriminator()
         gen = PairedWindowUNet()
         model = WindowGAN(windowWidth, gen, disc, mode='train', learning_rate=learning_rate, betas=betas)
         start_epoch = createModelParams(model, model_file)
     elif args.model == 'base':
-        # Create dataset and dataloader
-        dataset = BaseDataset(root=dataroot, mode='train', tvt=(4, 1, 5), size=size, shifts=num_shifts,
+        # Create dataset
+        dataset = BaseDataset(root=dataroot, mode='train', tvt=tvt, size=size, shifts=num_shifts,
                               transform=transforms.ToTensor())
-        sbst = Subset(dataset, range(10))
-        dataloader = DataLoader(sbst, batch_size=batch_size, shuffle=True)
         # Create models
         disc = SinoDiscriminator()
         gen = SinoUNet()
         model = BaseGAN(gen, disc, mode='train', learning_rate=learning_rate, betas=betas)
         start_epoch = createModelParams(model, model_file)
     elif args.model == 'full':
-        # Create dataset and dataloader
-        dataset = PairedFullDataset(root=dataroot, mode='train', tvt=(1, 1, 8), size=size, shifts=num_shifts,
+        # Create dataset
+        dataset = PairedFullDataset(root=dataroot, mode='train', tvt=tvt, size=size, shifts=num_shifts,
                                     windowWidth=windowWidth, transform=transforms.ToTensor())
-        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
         # Create models
         disc = PairedFullDiscriminator()
         gen = PairedFullUNet()
@@ -230,5 +233,9 @@ if __name__ == '__main__':
     if save_every_epoch and model_save_dir is None:
         warnings.warn("Argument --save-every-epoch is True, but a save directory has not been specified. "
                       "Models will not be saved at all!", RuntimeWarning)
-    train(model, dataloader, epochs, save_every_epoch=save_every_epoch, save_dir=model_save_dir,
-          save_name=args.model, start_epoch=start_epoch, verbose=verbose)
+    if sbst_size is not None:
+        random_start = random.randint(0, size-sbst_size)
+        dataset = Subset(dataset, [random.randrange(size) for _ in range(sbst_size)])
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    train(model, dataloader, epochs, save_every_epoch=save_every_epoch, save_dir=model_save_dir, save_name=args.model,
+          start_epoch=start_epoch, verbose=verbose)
