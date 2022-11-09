@@ -116,8 +116,17 @@ and train the network to only generate data in those parts of the image.<br>
 This means that most of the sinogram data will stay the same - only the parts that contain stripes will be changed.
 The hope is that this will increase the resolution.<br>
 
-This new method requires an accurate way of detecting the location of stripes within a sinogram.
-Research is being done into the best way of achieving this.
+This new method requires an accurate way of detecting the location of stripes within a sinogram.<br>
+The current method, inspired by that in [\[7\]](#references), involves calculating the mean curve of an image, smoothing that curve,
+calculating the difference between these two curves, then thresholding this difference.<br>
+From this, a mask is made by setting all the pixels where a stripe is detected to 1, and all others to zero.<br>
+Then, some simple convolutional smoothing is applied to this mask, followed by a check to constrain the widths of each
+solid (i.e. ones) section of the mask.<br>
+
+This new method involving masks is effective; it successfully stops the loss of resolution from occuring.<br>
+However, some new artifacts are still introduced.
+    ![Masked GAN](images/mask_example2.png)
+These can be reduced by adjusting hyperparameters and training for longer.<br>
 
 
 ## References
@@ -133,3 +142,5 @@ Research is being done into the best way of achieving this.
 [5] [Isola, P., Zhu, J.Y., Zhou, T. and Efros, A.A., 2017. Image-to-image translation with conditional adversarial networks. In Proceedings of the IEEE conference on computer vision and pattern recognition (pp. 1125-1134).](https://doi.org/10.48550/arXiv.1611.07004)
 <br><br>
 [6] [Ghani, M.U. and Karl, W.C., 2019. Fast enhanced CT metal artifact reduction using data domain deep learning. IEEE Transactions on Computational Imaging, 6, pp.181-193.](https://doi.org/10.48550/arXiv.1904.04691)
+<br><br>
+[7] [Ashrafuzzaman, A.N.M., Lee, S.Y. and Hasan, M.K., 2011. A self-adaptive approach for the detection and correction of stripes in the sinogram: suppression of ring artifacts in CT imaging. EURASIP Journal on Advances in Signal Processing, 2011, pp.1-13.](https://doi.org/10.1155/2011/183547)
