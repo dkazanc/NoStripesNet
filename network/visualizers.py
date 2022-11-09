@@ -55,6 +55,19 @@ class BaseGANVisualizer:
         plt.legend()
         plt.show()
 
+    def plot_one(self):
+        item = np.random.randint(0, self.model.realA.shape[0])
+        clean = self.model.realB.detach()[item]
+        stripe = self.model.realA.detach()[item]
+        fake = self.model.fakeB.detach()[item]
+        images = [clean, stripe, fake]
+        images += batch_reconstruct(torch.stack(images, dim=0), self.size)
+        for i, img in enumerate(images):
+            plt.subplot(2, 3, i + 1)
+            plt.imshow(img.squeeze(), cmap='gray')
+            plt.axis('off')
+        plt.show()
+
     def plot_real_vs_fake_batch(self):
         """Function to plot a batch of real inputs, target outputs and generated outputs.
         Before running this function, at least one train or test pass must have been made."""
@@ -121,6 +134,41 @@ class PairedWindowGANVisualizer(BaseGANVisualizer):
         self.model.realB = self.dataset.combineWindows(self.model.realBs)
         self.model.fakeB = self.dataset.combineWindows(self.model.fakeBs)
         super().plot_real_vs_fake_recon()
+
+    def plot_one(self):
+        self.model.realA = self.dataset.combineWindows(self.model.realAs)
+        self.model.realB = self.dataset.combineWindows(self.model.realBs)
+        self.model.fakeB = self.dataset.combineWindows(self.model.fakeBs)
+        item = np.random.randint(0, self.model.realA.shape[0])
+        clean = self.model.realB.detach()[item]
+        stripe = self.model.realA.detach()[item]
+        fake = self.model.fakeB.detach()[item]
+        images = [clean, stripe, fake]
+        images += batch_reconstruct(torch.stack(images, dim=0), self.size)
+        for i, img in enumerate(images):
+            plt.subplot(2, 3, i + 1)
+            plt.imshow(img.squeeze(), cmap='gray')
+            plt.axis('off')
+        plt.show()
+
+
+class MaskedVisualizer(BaseGANVisualizer):
+    def plot_one(self):
+        item = np.random.randint(0, self.model.realA.shape[0])
+        clean = self.model.realB.detach()[item]
+        stripe = self.model.realA.detach()[item]
+        mask = self.model.mask.detach()[item]
+        gen_in = stripe.clone()
+        gen_in[mask] = 0
+        gen_out = self.model.fakeB.detach()[item]
+        images = [clean, stripe, mask, gen_in, gen_out]
+        images += batch_reconstruct(torch.stack(images, dim=0), self.size)
+
+        for i, img in enumerate(images):
+            plt.subplot(2, 5, i+1)
+            plt.imshow(img.squeeze(), cmap='gray')
+            plt.axis('off')
+        plt.show()
 
 
 class MetricVisualizer:

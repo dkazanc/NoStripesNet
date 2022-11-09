@@ -10,11 +10,11 @@ from torch.utils.data import DataLoader, Subset
 import torchvision.transforms as transforms
 import torchvision.utils as utils
 
-from models import BaseGAN, WindowGAN, init_weights
-from models.discriminators import SinoDiscriminator, PairedWindowDiscriminator, PairedFullDiscriminator
-from models.generators import SinoUNet, PairedWindowUNet, PairedFullUNet
-from visualizers import BaseGANVisualizer, PairedWindowGANVisualizer
-from datasets import PairedWindowDataset, BaseDataset, PairedFullDataset
+from models import BaseGAN, WindowGAN, MaskedGAN, init_weights
+from models.discriminators import *
+from models.generators import *
+from visualizers import BaseGANVisualizer, PairedWindowGANVisualizer, MaskedVisualizer
+from datasets import PairedWindowDataset, BaseDataset, PairedFullDataset, MaskedDataset
 
 
 # In the future this should be in NoStripesNet/simulator/data_io.py
@@ -61,6 +61,10 @@ def getTrainingData(dataset, data):
     elif type(dataset) == PairedFullDataset:
         clean, stripe, plain = data
         return stripe, clean
+    elif type(dataset) == MaskedDataset:
+        clean, stripe, mask = data
+        inpt = torch.cat((stripe, mask), dim=1)
+        return inpt, clean
     else:
         raise ValueError(f"Dataset '{dataset}' not recognised.")
 
@@ -72,6 +76,8 @@ def getVisualizer(model, dataset, size):
         return PairedWindowGANVisualizer(model, dataset, size)
     elif type(dataset) == PairedFullDataset:
         return BaseGANVisualizer(model, dataset, size)
+    elif type(dataset) == MaskedDataset:
+        return MaskedVisualizer(model, dataset, size)
     else:
         raise ValueError(f"Dataset '{dataset}' not recognised.")
 
@@ -150,7 +156,7 @@ def get_args():
     parser.add_argument('-r', "--root", type=str, default='../data',
                         help="Path to input data used in network")
     parser.add_argument('-m', "--model", type=str, default='window',
-                        help="Type of model to train. Must be one of 'window' or 'base'.")
+                        help="Type of model to train. Must be one of 'window', 'base', 'full' or 'mask'.")
     parser.add_argument('-N', "--size", type=int, default=256,
                         help="Size of image generated (cubic). Also height of sinogram")
     parser.add_argument('-s', "--shifts", type=int, default=5,
@@ -226,16 +232,25 @@ if __name__ == '__main__':
         gen = PairedFullUNet()
         model = BaseGAN(gen, disc, mode='train', learning_rate=learning_rate, betas=betas)
         start_epoch = createModelParams(model, model_file)
+    elif args.model == 'mask':
+        # Create dataset
+        dataset = MaskedDataset(root=dataroot, mode='train', tvt=tvt, size=size, shifts=num_shifts,
+                                transform=transforms.ToTensor())
+        # Create models
+        disc = PairedFullDiscriminator()
+        gen = PairedFullUNet()
+        model = MaskedGAN(gen, disc, mode='train', learning_rate=learning_rate, betas=betas)
+        start_epoch = createModelParams(model, model_file)
     else:
-        raise ValueError(f"Argument '--model' should be one of 'window', 'base'. Instead got '{args.model}'")
+        raise ValueError(f"Argument '--model' should be one of 'window', 'base', 'full', or 'mask'. Instead got '{args.model}'")
 
     # Train
     if save_every_epoch and model_save_dir is None:
         warnings.warn("Argument --save-every-epoch is True, but a save directory has not been specified. "
                       "Models will not be saved at all!", RuntimeWarning)
     if sbst_size is not None:
-        random_start = random.randint(0, size-sbst_size)
-        dataset = Subset(dataset, [random.randrange(size) for _ in range(sbst_size)])
+        random_start = random.randint(0, len(dataset)-sbst_size)
+        dataset = Subset(dataset, range(random_start, random_start+sbst_size))
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
     train(model, dataloader, epochs, save_every_epoch=save_every_epoch, save_dir=model_save_dir, save_name=args.model,
           start_epoch=start_epoch, verbose=verbose)

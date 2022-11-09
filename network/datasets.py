@@ -2,9 +2,11 @@ import sys
 sys.path.append('..')  # crap solution to an even worse problem
 import os
 import itertools
+import functools
 import numpy as np
 import torch
 from torch.utils.data import Dataset
+from scipy.ndimage import uniform_filter1d
 from simulator.data_io import loadTiff
 from metrics import *
 
@@ -172,3 +174,64 @@ class PairedFullDataset(PairedWindowDataset):
         stripe_full = self.combineWindows(stripe)
         plain_full = self.combineWindows(plain)
         return clean_full, stripe_full, plain_full
+
+
+class MaskedDataset(BaseDataset):
+    def __init__(self, root, mode, tvt, size=256, shifts=5, transform=None,
+                 kernel_width=3, min_width=2, max_width=25, threshold=0.01):
+        super().__init__(root, mode, tvt, size=size, shifts=shifts, transform=transform)
+        self.k = 3
+        self.min_width = min_width
+        self.max_width = max_width
+        self.eta = threshold
+
+    def __len__(self):
+        return super().__len__() * self.shifts
+
+    def __getitem__(self, item):
+        clean, *shifts = super().__getitem__(item // self.shifts)
+        shift_idx = item % self.shifts
+        stripe = shifts[shift_idx]
+        mask = self.getMask(stripe)
+        return clean, stripe, mask
+
+    def getMask(self, sinogram):
+        if isinstance(sinogram, np.ndarray):
+            mean = functools.partial(np.mean, axis=-2)
+            abs = np.abs
+            mask = np.zeros_like(sinogram, dtype=np.bool_)
+        elif isinstance(sinogram, torch.Tensor):
+            mean = functools.partial(torch.mean, dim=-2)
+            abs = torch.abs
+            mask = torch.zeros_like(sinogram, dtype=torch.bool)
+        else:
+            raise TypeError(f"Expected type {np.ndarray} or {torch.Tensor}. Instead got {type(sinogram)}")
+
+        # calculate mean curve, smoothed mean curve, and difference between the two
+        mean_curve = mean(sinogram)
+        mean_curve = normalise(mean_curve)
+        smooth_curve = uniform_filter1d(mean_curve, size=5)
+        if isinstance(sinogram, torch.Tensor):
+            smooth_curve = torch.tensor(smooth_curve)
+        diff_curve = abs(smooth_curve - mean_curve).squeeze()
+        mask[..., diff_curve > self.eta] = True
+
+        convolutions = np.lib.stride_tricks.sliding_window_view(mask.squeeze(), (sinogram.shape[-2], self.k)).squeeze()
+        for i, conv in enumerate(convolutions):
+            if conv[0, 0] and conv[0, -1]:
+                mask[..., i:i + self.k] = True
+
+        # get thickness of stripes in mask
+        # if thickness is within certain threshold, remove stripe
+        in_stripe = False
+        for i in range(mask.shape[-1]):
+            if mask[..., 0, i] and not in_stripe:
+                start = i
+                in_stripe = True
+            if not mask[..., 0, i] and in_stripe:
+                stop = i
+                in_stripe = False
+                width = stop - start
+                if width < self.min_width or width > self.max_width:
+                    mask[..., start:stop] = 0
+        return mask

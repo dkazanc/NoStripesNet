@@ -9,10 +9,10 @@ import torchvision.transforms as transforms
 import torchvision.utils as utils
 
 from training import getVisualizer, getTrainingData
-from models import BaseGAN, WindowGAN, init_weights
+from models import BaseGAN, WindowGAN, MaskedGAN, init_weights
 from models.generators import SinoUNet, PairedWindowUNet, PairedFullUNet
-from datasets import PairedWindowDataset, BaseDataset, PairedFullDataset
-from visualizers import BaseGANVisualizer, PairedWindowGANVisualizer
+from datasets import PairedWindowDataset, BaseDataset, PairedFullDataset, MaskedDataset
+from visualizers import BaseGANVisualizer, PairedWindowGANVisualizer, MaskedVisualizer
 from metrics import *
 
 
@@ -71,6 +71,7 @@ def test(model, dataloader, metrics, display_each_batch=False, verbose=True, vis
     if not visual_only:
         print("Total mean scores for all batches:")
         [print(f"\t{key: <23}: {np.mean(overall_mean_scores[key])}") for key in overall_mean_scores]
+    vis.plot_one()
     if verbose:
         print("Plotting last batch...")
     vis.plot_real_vs_fake_batch()
@@ -84,7 +85,7 @@ def get_args():
     parser.add_argument('-r', "--root", type=str, default='../data',
                         help="Path to input data used in network")
     parser.add_argument('-m', "--model", type=str, default='window',
-                        help="Type of model to test. Must be one of 'window' or 'base'")
+                        help="Type of model to test. Must be one of 'window', 'base', 'full' or 'mask'.")
     parser.add_argument('-f', "--model-file", type=str, default=None,
                         help="Path from which to load models for testing")
     parser.add_argument('-N', "--size", type=int, default=256,
@@ -158,8 +159,15 @@ if __name__ == '__main__':
         gen = PairedFullUNet()
         createGenParams(gen, model_file)
         model = BaseGAN(gen, mode='test')
+    elif model_name == 'mask':
+        dataset = MaskedDataset(root=dataroot, mode='test', tvt=tvt, size=size, shifts=num_shifts,
+                                transform=transforms.ToTensor())
+        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+        gen = PairedFullUNet()
+        createGenParams(gen, model_file)
+        model = MaskedGAN(gen, mode='test')
     else:
-        raise ValueError(f"Argument '--model' should be one of 'window', 'base'. Instead got '{model_name}'")
+        raise ValueError(f"Argument '--model' should be one of 'window', 'base', 'full', or 'mask'. Instead got '{model_name}'")
 
     # Test
     test(model, dataloader, ms, display_each_batch=display_each_batch, verbose=verbose, visual_only=visual)

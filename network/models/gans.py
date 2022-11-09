@@ -68,7 +68,8 @@ class BaseGAN:
         self.fakeB = self.gen(self.realA)
 
     def backwardD(self):
-        """Run backward pass for discriminator"""
+        """Run backward pass for discriminator
+        Real label == 1, Fake label == 0"""
         # Step 1 - calculate discriminator loss on fake inputs
         fakeAB = torch.cat((self.realA, self.fakeB), dim=1)
         outFake = self.disc(fakeAB.detach())
@@ -170,3 +171,16 @@ class WindowGAN(BaseGAN):
             torch.nn.ReplicationPad2d((0, self.windowWidth - b_copy.shape[-1], 0, 0))(b_copy)
         self.realA = a_copy
         self.realB = b_copy
+
+
+class MaskedGAN(BaseGAN):
+    def preprocess(self, a, b):
+        self.realA = a[:, 0].unsqueeze(dim=1)
+        self.mask = a[:, 1].unsqueeze(dim=1).type(torch.bool)
+        self.realB = b
+
+    def forward(self):
+        gen_in = self.realA.clone()
+        gen_in[self.mask] = 0
+        gen_out = self.gen(gen_in)
+        self.fakeB = self.realA + self.mask * gen_out
