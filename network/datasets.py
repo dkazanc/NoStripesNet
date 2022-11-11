@@ -3,9 +3,10 @@ sys.path.append('..')  # crap solution to an even worse problem
 import os
 import itertools
 import functools
+import random
 import numpy as np
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, Subset
 from scipy.ndimage import uniform_filter1d
 from simulator.data_io import loadTiff
 from metrics import *
@@ -235,3 +236,18 @@ class MaskedDataset(BaseDataset):
                 if width < self.min_width or width > self.max_width:
                     mask[..., start:stop] = 0
         return mask
+
+
+class RandomSubset(Subset):
+    def __init__(self, dataset, indices):
+        super().__init__(dataset, indices)
+
+    def __len__(self):
+        return self.indices
+
+    def __getitem__(self, item):
+        return self.dataset[item]
+
+    def setMode(self, mode):
+        self.dataset.setMode(mode)
+        self.dataset.filepaths = random.sample(self.dataset.filepaths, self.indices)

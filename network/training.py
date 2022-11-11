@@ -14,7 +14,7 @@ from models import BaseGAN, WindowGAN, MaskedGAN, init_weights
 from models.discriminators import *
 from models.generators import *
 from visualizers import BaseGANVisualizer, PairedWindowGANVisualizer, MaskedVisualizer
-from datasets import PairedWindowDataset, BaseDataset, PairedFullDataset, MaskedDataset
+from datasets import PairedWindowDataset, BaseDataset, PairedFullDataset, MaskedDataset, RandomSubset
 
 
 # In the future this should be in NoStripesNet/simulator/data_io.py
@@ -93,7 +93,7 @@ def train(model, dataloader, epochs, save_every_epoch=False, save_name=None, sav
     print(f"Training has begun. Epochs: {epochs}, Batches: {num_batches}, Steps/batch: {dataloader.batch_size}")
     for epoch in range(start_epoch, epochs):
         print(f"Epoch [{epoch + 1}/{epochs}]: Training model...")
-        dataset.setMode('train')
+        dataloader.dataset.setMode('train')
         model.setMode('train')
         num_batches = len(dataloader)
         for i, data in enumerate(dataloader):
@@ -109,7 +109,7 @@ def train(model, dataloader, epochs, save_every_epoch=False, save_name=None, sav
 
         # At the end of every epoch, run through validate dataset
         print(f"Epoch [{epoch + 1}/{epochs}]: Training finished. Validating model...")
-        dataset.setMode('validate')
+        dataloader.dataset.setMode('validate')
         model.setMode('validate')
         num_batches = len(dataloader)
         validation_lossesG = torch.Tensor(num_batches)
@@ -249,8 +249,7 @@ if __name__ == '__main__':
         warnings.warn("Argument --save-every-epoch is True, but a save directory has not been specified. "
                       "Models will not be saved at all!", RuntimeWarning)
     if sbst_size is not None:
-        random_start = random.randint(0, len(dataset)-sbst_size)
-        dataset = Subset(dataset, range(random_start, random_start+sbst_size))
+        dataset = RandomSubset(dataset, sbst_size)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
     train(model, dataloader, epochs, save_every_epoch=save_every_epoch, save_dir=model_save_dir, save_name=args.model,
           start_epoch=start_epoch, verbose=verbose)
