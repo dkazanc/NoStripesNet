@@ -183,4 +183,4 @@ class MaskedGAN(BaseGAN):
         gen_in = self.realA.clone()
         gen_in[self.mask] = 0
         gen_out = self.gen(gen_in)
-        self.fakeB = self.realA + self.mask * gen_out
+        self.fakeB = gen_in + self.mask * gen_out
