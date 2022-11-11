@@ -239,15 +239,15 @@ class MaskedDataset(BaseDataset):
 
 
 class RandomSubset(Subset):
-    def __init__(self, dataset, indices):
+    def __init__(self, dataset, length):
+        self.length = length
+        indices = random.sample(range(0, len(dataset)), self.length)
         super().__init__(dataset, indices)
 
     def __len__(self):
-        return self.indices
-
-    def __getitem__(self, item):
-        return self.dataset[item]
+        return self.length
 
     def setMode(self, mode):
         self.dataset.setMode(mode)
-        self.dataset.filepaths = random.sample(self.dataset.filepaths, self.indices)
+        indices = random.sample(range(0, len(self.dataset)), self.length)
+        super().__init__(self.dataset, indices)
