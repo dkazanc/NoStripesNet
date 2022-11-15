@@ -39,7 +39,6 @@ class SinoDiscriminator(nn.Module):
 
             # Input (512, 6, 5) -> Output (1, 1, 1)
             nn.Conv2d(filters*32, 1, (6, 5), bias=False),
-            nn.Sigmoid()
         )
 
     def forward(self, x):
@@ -89,7 +88,6 @@ class PairedWindowDiscriminator(nn.Module):
 
             # Input (512, 4, 4) -> Output (1, 1, 1)
             nn.Conv2d(filters*32, 1, (4, 4), stride=(2, 1), padding=(0, 0), bias=False),
-            nn.Sigmoid()
         )
 
     def forward(self, x):
@@ -122,7 +120,6 @@ class PairedFullDiscriminator(nn.Module):
 
             # Input (512, 4, 4) -> Output (1, 1, 1)
             nn.Conv2d(filters*8, 1, kernel_size=(4, 4), stride=(2, 2), padding=(0, 0), bias=False),
-            nn.Sigmoid()
         )
 
     def forward(self, x):
