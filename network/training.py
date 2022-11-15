@@ -33,7 +33,7 @@ def saveModel(model, epoch, save_dir, save_name):
 
 
 def createModelParams(model, path):
-    if model_file is None:
+    if path is None:
         print(f"Training new model from scratch.")
         model.gen.apply(init_weights)
         model.disc.apply(init_weights)
