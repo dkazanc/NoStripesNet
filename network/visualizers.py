@@ -129,7 +129,8 @@ class BaseGANVisualizer:
             plt.subplot(2, 5, i+1)
             plt.imshow(disc_inputs[i][1], cmap='gray')
             plt.axis('off')
-            plt.title(f"Pred: {'Real' if disc_outputs[i] else 'Fake'}")
+            pred = torch.sigmoid(disc_outputs[i])
+            plt.title(f"Actual: {'Real' if i < 5 else 'Fake'}\nPred: {'Real' if pred >= 0.5 else 'Fake'}")
         plt.show()
 
 
