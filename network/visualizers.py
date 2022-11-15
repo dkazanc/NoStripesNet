@@ -118,6 +118,20 @@ class BaseGANVisualizer:
                    cmap='gray')
         plt.show()
 
+    def plot_disc_predictions(self):
+        """Function to plot a series of real and fake images, with the label predicted by the discriminator"""
+        real_outputs = torch.cat((self.model.realA[:5], self.model.realB[:5]), dim=1)
+        fake_outputs = torch.cat((self.model.realA[:5], self.model.fakeB[:5]), dim=1)
+        disc_inputs = torch.cat((real_outputs, fake_outputs), dim=0)
+        disc_outputs = self.model.disc(disc_inputs).detach()
+        disc_inputs.detach_()
+        for i in range(10):
+            plt.subplot(2, 5, i+1)
+            plt.imshow(disc_inputs[i][1], cmap='gray')
+            plt.axis('off')
+            plt.title(f"Pred: {'Real' if disc_outputs[i] else 'Fake'}")
+        plt.show()
+
 
 class PairedWindowGANVisualizer(BaseGANVisualizer):
     def __init__(self, model, dataset, size):

@@ -143,6 +143,7 @@ def train(model, dataloader, epochs, save_every_epoch=False, save_name=None, sav
     vis.plot_losses()
     vis.plot_real_vs_fake_batch()
     vis.plot_real_vs_fake_recon()
+    vis.plot_disc_predictions()
     # Save models if user desires and save_every_epoch is False
     if not save_every_epoch and input("Save model? (y/[n]): ") == 'y':
         saveModel(model, epochs, save_dir, save_name)
@@ -205,10 +206,16 @@ if __name__ == '__main__':
     save_every_epoch = args.save_every_epoch
     verbose = args.verbose
 
+    # mean: 0.1780845671892166, std: 0.02912825345993042
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize(0.5, 0.5)
+    ])
+
     if args.model == 'window':
         # Create dataset
         dataset = PairedWindowDataset(root=dataroot, mode='train', tvt=tvt, size=size, shifts=num_shifts,
-                                      windowWidth=windowWidth, transform=transforms.ToTensor())
+                                      windowWidth=windowWidth, transform=transform)
         # Create models
         disc = PairedWindowDiscriminator()
         gen = PairedWindowUNet()
@@ -217,7 +224,7 @@ if __name__ == '__main__':
     elif args.model == 'base':
         # Create dataset
         dataset = BaseDataset(root=dataroot, mode='train', tvt=tvt, size=size, shifts=num_shifts,
-                              transform=transforms.ToTensor())
+                              transform=transform)
         # Create models
         disc = SinoDiscriminator()
         gen = SinoUNet()
@@ -226,7 +233,7 @@ if __name__ == '__main__':
     elif args.model == 'full':
         # Create dataset
         dataset = PairedFullDataset(root=dataroot, mode='train', tvt=tvt, size=size, shifts=num_shifts,
-                                    windowWidth=windowWidth, transform=transforms.ToTensor())
+                                    windowWidth=windowWidth, transform=transform)
         # Create models
         disc = PairedFullDiscriminator()
         gen = PairedFullUNet()
@@ -235,7 +242,7 @@ if __name__ == '__main__':
     elif args.model == 'mask':
         # Create dataset
         dataset = MaskedDataset(root=dataroot, mode='train', tvt=tvt, size=size, shifts=num_shifts,
-                                transform=transforms.ToTensor())
+                                transform=transform)
         # Create models
         disc = PairedFullDiscriminator()
         gen = PairedFullUNet()
