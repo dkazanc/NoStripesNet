@@ -134,10 +134,15 @@ if __name__ == '__main__':
     verbose = args.verbose
     visual = args.visual_only
 
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize(0.5, 0.5)
+    ])
+
     if model_name == 'base':
         # Create dataset and dataloader
         dataset = BaseDataset(root=dataroot, mode='test', tvt=tvt, size=size, shifts=num_shifts,
-                              transform=transforms.ToTensor())
+                              transform=transform)
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
         # Create models
         gen = SinoUNet()
@@ -146,7 +151,7 @@ if __name__ == '__main__':
     elif model_name == 'window':
         # Create dataset and dataloader
         dataset = PairedWindowDataset(root=dataroot, mode='test', tvt=tvt, size=size, shifts=num_shifts,
-                                      windowWidth=windowWidth, transform=transforms.ToTensor())
+                                      windowWidth=windowWidth, transform=transform)
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
         # Create models
         gen = PairedWindowUNet()
@@ -154,14 +159,14 @@ if __name__ == '__main__':
         model = WindowGAN(windowWidth, gen, mode='test')
     elif model_name == 'full':
         dataset = PairedFullDataset(root=dataroot, mode='test', tvt=tvt, size=size, shifts=num_shifts,
-                                    windowWidth=windowWidth, transform=transforms.ToTensor())
+                                    windowWidth=windowWidth, transform=transform)
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
         gen = PairedFullUNet()
         createGenParams(gen, model_file)
         model = BaseGAN(gen, mode='test')
     elif model_name == 'mask':
         dataset = MaskedDataset(root=dataroot, mode='test', tvt=tvt, size=size, shifts=num_shifts,
-                                transform=transforms.ToTensor())
+                                transform=transform)
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
         gen = PairedFullUNet()
         createGenParams(gen, model_file)
