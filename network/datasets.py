@@ -179,12 +179,13 @@ class PairedFullDataset(PairedWindowDataset):
 
 class MaskedDataset(BaseDataset):
     def __init__(self, root, mode, tvt, size=256, shifts=5, transform=None,
-                 kernel_width=3, min_width=2, max_width=25, threshold=0.01):
+                 kernel_width=3, min_width=2, max_width=25, threshold=0.01, simple=False):
         super().__init__(root, mode, tvt, size=size, shifts=shifts, transform=transform)
         self.k = 3
         self.min_width = min_width
         self.max_width = max_width
         self.eta = threshold
+        self.simple = simple
 
     def __len__(self):
         return super().__len__() * self.shifts
@@ -193,8 +194,24 @@ class MaskedDataset(BaseDataset):
         clean, *shifts = super().__getitem__(item // self.shifts)
         shift_idx = item % self.shifts
         stripe = shifts[shift_idx]
-        mask = self.getMask(stripe)
+        if self.simple:
+            mask = self.getSimpleMask(clean, stripe)
+        else:
+            mask = self.getMask(stripe)
         return clean, stripe, mask
+
+    def getSimpleMask(self, clean, stripe):
+        """Simple function to get a mask of the locations of stripes in a sinogram.
+        Requires a 'clean' ground truth as a reference point; therefore is not applicable to real-life data."""
+        mask = np.zeros_like(clean, dtype=np.bool_)
+        diff = np.abs(clean - stripe)
+        mask[diff > 0] = 1
+
+        # expand mask widths by one pixel
+        stripe_idxs = np.where(mask[0] == 1)[0]
+        for stripe_idx in stripe_idxs:
+            mask[:, stripe_idx-1:stripe_idx+1] = 1
+        return mask
 
     def getMask(self, sinogram):
         if isinstance(sinogram, np.ndarray):
