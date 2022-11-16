@@ -12,6 +12,7 @@ import os
 
 from tomophantom import TomoP3D
 from tomophantom.randphant.generator import foam3D
+from tomophantom.supp.artifacts import _Artifacts_
 from tomobar.supp.suppTools import normaliser
 from flatgen_mod import synth_flats_mod
 from flats_to_proj import add_flats_proj
@@ -157,6 +158,30 @@ def simulateFlats(ProjData3D, N_size, I0=40000, flatsnum=20, shifted_positions_n
     return projData3D_norm
 
 # %%%
+
+
+def simulateStripes(ProjData3D, N_size, I0=40000, flatsnum=20, shifted_positions_no=5, shift_step=2,
+                  output_path=None, sampleNo=None, verbose=False, visual=False):
+    _stripes_ = {'stripes_percentage': 1.2,
+                 'stripes_maxthickness': 3.0,
+                 'stripes_intensity': 0.25,
+                 'stripes_type': 'mix',
+                 'stripes_variability': 0}
+    # normalize data in range [0, 1]
+    ProjData3D = rescale(ProjData3D, a=0, b=1)
+    # add stripes
+    projData3D_stripes = _Artifacts_(ProjData3D, **_stripes_)
+    # stripes add a bit of extra intensity (i.e. > 1) so must be clipped back to range [0, 1]
+    projData3D_stripes = np.clip(np.abs(projData3D_stripes), 0, 1)
+
+    if output_path:
+        if sampleNo is None:
+            raise RuntimeError("If supplying an output path, a sample number must also be supplied.")
+        shiftDir = os.path.join(output_path, 'shift'+str(0).zfill(2))
+        filename = os.path.join(shiftDir, str(sampleNo).zfill(4)+'_shift'+str(0).zfill(2))
+        save3DTiff(projData3D_stripes, filename)
+
+    return projData3D_stripes
 
 
 if __name__ == '__main__':
