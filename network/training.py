@@ -239,10 +239,10 @@ if __name__ == '__main__':
         gen = PairedFullUNet()
         model = BaseGAN(gen, disc, mode='train', learning_rate=learning_rate, betas=betas)
         start_epoch = createModelParams(model, model_file)
-    elif args.model == 'mask':
+    elif args.model == 'mask' or args.model == 'simple':
         # Create dataset
-        dataset = MaskedDataset(root=dataroot, mode='train', tvt=tvt, size=size, shifts=num_shifts,
-                                transform=transform)
+        dataset = MaskedDataset(root=dataroot, mode='train', tvt=tvt, size=size, shifts=num_shifts, transform=transform,
+                                simple=args.model=='simple')
         # Create models
         disc = PairedFullDiscriminator()
         gen = PairedFullUNet()

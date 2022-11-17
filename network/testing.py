@@ -164,9 +164,9 @@ if __name__ == '__main__':
         gen = PairedFullUNet()
         createGenParams(gen, model_file)
         model = BaseGAN(gen, mode='test')
-    elif model_name == 'mask':
+    elif model_name == 'mask' or model_name == 'simple':
         dataset = MaskedDataset(root=dataroot, mode='test', tvt=tvt, size=size, shifts=num_shifts,
-                                transform=transform)
+                                transform=transform, simple=model_name=='simple')
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
         gen = PairedFullUNet()
         createGenParams(gen, model_file)
