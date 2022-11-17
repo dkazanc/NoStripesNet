@@ -207,7 +207,8 @@ class MaskedDataset(BaseDataset):
         mask[diff > diff.min()] = 1
 
         # expand mask widths by one pixel
-        stripe_idxs = np.where(mask[0, 0, :] == 1)[0]
+        zero_prepend = [0 for _ in range(mask.ndim - 1)]
+        stripe_idxs = np.where(mask[zero_prepend, :] == 1)[0]
         for stripe_idx in stripe_idxs:
             mask[..., stripe_idx-1:stripe_idx+1] = 1
         return mask
