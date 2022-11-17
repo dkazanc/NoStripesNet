@@ -54,7 +54,6 @@ class BaseDataset(Dataset):
             clean = self.transform(clean)
             for i in range(len(shifts)):
                 shifts[i] = self.transform(shifts[i])
-
         return clean, *shifts
 
     def setMode(self, mode):
@@ -205,12 +204,12 @@ class MaskedDataset(BaseDataset):
         Requires a 'clean' ground truth as a reference point; therefore is not applicable to real-life data."""
         mask = np.zeros_like(clean, dtype=np.bool_)
         diff = np.abs(clean - stripe)
-        mask[diff > 0] = 1
+        mask[diff > diff.min()] = 1
 
         # expand mask widths by one pixel
-        stripe_idxs = np.where(mask[0] == 1)[0]
+        stripe_idxs = np.where(mask[0, 0, :] == 1)[0]
         for stripe_idx in stripe_idxs:
-            mask[:, stripe_idx-1:stripe_idx+1] = 1
+            mask[..., stripe_idx-1:stripe_idx+1] = 1
         return mask
 
     def getMask(self, sinogram):
