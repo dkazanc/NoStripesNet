@@ -46,13 +46,23 @@ class BaseGANVisualizer:
 
     def plot_losses(self):
         # Plot losses
-        plt.figure(figsize=(10, 5))
+        fig, ax1 = plt.subplots()
+        plt.figure(num=1, figsize=(15, 8))
         plt.title("Generator and Discriminator Loss During Training")
-        plt.plot(self.model.lossG_values, label="G")
-        plt.plot(self.model.lossD_values, label="D")
-        plt.xlabel("Iterations")
-        plt.ylabel("Loss")
-        plt.legend()
+        # Generator
+        l1 = ax1.plot(self.model.lossG_values, 'b-', label="G")
+        ax1.set_xlabel("Iterations")
+        ax1.set_ylabel("Generator Loss")
+        ax1.set_ylim([0, None])
+        # Discriminator
+        ax2 = ax1.twinx()
+        l2 = ax2.plot(self.model.lossD_values, 'y-', label="D")
+        ax2.set_ylabel("Discriminator Loss")
+        ax2.set_ylim([0, None])
+        # Legend
+        lines = l1 + l2
+        labels = [l.get_label() for l in lines]
+        ax1.legend(lines, labels, loc=0)
         plt.show()
 
     def plot_one(self):
