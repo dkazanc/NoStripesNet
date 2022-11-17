@@ -4,7 +4,7 @@ import warnings
 import torch
 import torch.nn as nn
 from scipy.ndimage import median_filter, uniform_filter
-from skimage.metrics import structural_similarity as ssim
+from skimage.metrics import structural_similarity as ssim, peak_signal_noise_ratio
 
 
 def normalise(data):
@@ -99,15 +99,15 @@ stripe_detection_metrics = [sum_max, total_variation2D, gradient_sum_max, gradie
 
 
 def l1(data1, data2):
-    return np.sum(np.abs(data1 - data2))
+    return np.mean(np.abs(data1 - data2))
 
 
 def l2(data1, data2):
     return np.linalg.norm(data1 - data2)
 
 
-def sum_square_diff(data1, data2):
-    return np.linalg.norm(data1 - data2) ** 2
+def mean_squared_error(data1, data2):
+    return l2(data1, data2) ** 2
 
 
 def sum_diff_grad(data1, data2):
@@ -116,36 +116,33 @@ def sum_diff_grad(data1, data2):
 
 
 def diceCoef(data1, data2):
-    intersect = np.logical_and(data1, data2)
+    intersect = np.intersect1d(data1, data2)
     total_pixels = data1.size + data2.size
-    f1 = (2 * np.sum(intersect)) / total_pixels
+    f1 = (2 * intersect.size) / total_pixels
     return f1
 
 
 def IoU(data1, data2):
-    intersect = np.logical_and(data1, data2)
-    union = np.logical_or(data1, data2)
-    iou = np.sum(intersect) / np.sum(union)
+    intersect = np.intersect1d(data1, data2)
+    union = np.union1d(data1, data2)
+    iou = intersect.size / union.size
     return iou
-
-
-def BCELoss(data1, data2):
-    target = torch.tensor(data1)
-    inp = torch.tensor(data2)
-    target = normalise(target)
-    inp = normalise(inp)
-    out_tensor = nn.BCELoss(reduction='mean')(inp, target)
-    return out_tensor.numpy()
 
 
 def histogram_intersection(data1, data2, bins=10):
     hist1, _ = np.histogram(data1, bins=bins)
     hist2, _ = np.histogram(data2, bins=bins)
-    return np.sum([min(h1, h2) for h1, h2 in zip(hist1, hist2)])
+    return np.mean([min(h1, h2) for h1, h2 in zip(hist1, hist2)])
 
 
-def struct_sim(data1, data2):
-    return ssim(data1, data2, data_range=data2.max() - data2.min())
+def structural_similarity(data1, data2):
+    range = np.amax((data1, data2)) - np.amin((data1, data2))
+    return ssim(data1, data2, data_range=range)
 
 
-test_metrics = [l1, l2, sum_square_diff, sum_diff_grad, diceCoef, IoU, BCELoss, histogram_intersection, struct_sim]
+def psnr(data1, data2):
+    range = np.amax((data1, data2)) - np.amin((data1, data2))
+    return peak_signal_noise_ratio(data1, data2, data_range=range)
+
+
+test_metrics = [l1, l2, mean_squared_error, sum_diff_grad, diceCoef, IoU, histogram_intersection, structural_similarity, psnr]
