@@ -11,12 +11,13 @@ import torchvision.utils as utils
 from training import getVisualizer, getTrainingData
 from models import BaseGAN, WindowGAN, MaskedGAN, init_weights
 from models.generators import SinoUNet, PairedWindowUNet, PairedFullUNet
+from models.discriminators import *
 from datasets import PairedWindowDataset, BaseDataset, PairedFullDataset, MaskedDataset
 from visualizers import BaseGANVisualizer, PairedWindowGANVisualizer, MaskedVisualizer
 from metrics import *
 
 
-def createGenParams(gen, path):
+def createModelParams(model, path):
     if path is None:
         print("No model directory specified, so new model will be created. This model will not have been trained.")
         cont = input("Are you sure you want to continue? ([y]/n): ")
@@ -26,7 +27,8 @@ def createGenParams(gen, path):
         gen.apply(init_weights)
     else:
         checkpoint = torch.load(path)
-        gen.load_state_dict(checkpoint['gen_state_dict'])
+        model.gen.load_state_dict(checkpoint['gen_state_dict'])
+        model.disc.load_state_dict(checkpoint['disc_state_dict'])
 
 
 def batch_metric(metric, data1_batch, data2_batch):
@@ -40,6 +42,7 @@ def test(model, dataloader, metrics, display_each_batch=False, verbose=True, vis
         dataset = dataloader.dataset
     vis = getVisualizer(model, dataset, dataset.size)
     overall_mean_scores = {metric.__name__: [] for metric in metrics}
+    overall_accuracies = {'total': 0, 'fake': 0, 'real': 0}
     print(f"Testing has begun. Batches: {len(dataloader)}, Steps/batch: {dataloader.batch_size}")
     for i, data in enumerate(dataloader):
         if verbose and not visual_only:
@@ -57,12 +60,18 @@ def test(model, dataloader, metrics, display_each_batch=False, verbose=True, vis
         if visual_only:
             break
 
+        # Calculate model evaluation metrics
         metric_scores = {metric.__name__: batch_metric(metric, model.realB, model.fakeB) for metric in metrics}
         [overall_mean_scores[key].append(metric_scores[key]) for key in metric_scores]
+        overall_accuracies['total'] += model.accuracy
+        overall_accuracies['fake'] += model.fake_accuracy
+        overall_accuracies['real'] += model.real_accuracy
 
         if display_each_batch:
             # Print test statistics for each batch
             [print(f"\t\t{key: <23}: {np.mean(overall_mean_scores[key])}") for key in overall_mean_scores]
+            # Print discriminator accuracy for each batch
+            print(f"\t\tDiscriminator Accuracy - Total: {model.accuracy}, Fake: {model.fake_accuracy}, Real: {model.real_accuracy}")
             # Plot images each batch
             if verbose:
                 print(f"\t\tPlotting batch [{i + 1}/{len(dataloader)}]...")
@@ -71,6 +80,10 @@ def test(model, dataloader, metrics, display_each_batch=False, verbose=True, vis
     if not visual_only:
         print("Total mean scores for all batches:")
         [print(f"\t{key: <23}: {np.mean(overall_mean_scores[key])}") for key in overall_mean_scores]
+        print("Overall Accuracy for discriminator:")
+        print(f"\tTotal : {overall_accuracies['total'] / len(dataloader)}"
+              f"\n\tFake  : {overall_accuracies['fake'] / len(dataloader)}" 
+              f"\n\tReal  : {overall_accuracies['real'] / len(dataloader)}")
     vis.plot_one()
     if verbose:
         print("Plotting last batch...")
@@ -146,8 +159,9 @@ if __name__ == '__main__':
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
         # Create models
         gen = SinoUNet()
-        createGenParams(gen, model_file)
-        model = BaseGAN(gen, mode='test')
+        disc = SinoDiscriminator()
+        model = BaseGAN(gen, disc, mode='test')
+        createModelParams(model, model_file)
     elif model_name == 'window':
         # Create dataset and dataloader
         dataset = PairedWindowDataset(root=dataroot, mode='test', tvt=tvt, size=size, shifts=num_shifts,
@@ -155,22 +169,25 @@ if __name__ == '__main__':
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
         # Create models
         gen = PairedWindowUNet()
-        createGenParams(gen, model_file)
-        model = WindowGAN(windowWidth, gen, mode='test')
+        disc = PairedWindowDiscriminator()
+        model = WindowGAN(windowWidth, gen, disc, mode='test')
+        createModelParams(model, model_file)
     elif model_name == 'full':
         dataset = PairedFullDataset(root=dataroot, mode='test', tvt=tvt, size=size, shifts=num_shifts,
                                     windowWidth=windowWidth, transform=transform)
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
         gen = PairedFullUNet()
-        createGenParams(gen, model_file)
-        model = BaseGAN(gen, mode='test')
+        disc = PairedFullDiscriminator()
+        model = BaseGAN(gen, disc, mode='test')
+        createModelParams(model, model_file)
     elif model_name == 'mask' or model_name == 'simple':
         dataset = MaskedDataset(root=dataroot, mode='test', tvt=tvt, size=size, shifts=num_shifts,
                                 transform=transform, simple=model_name=='simple')
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
         gen = PairedFullUNet()
-        createGenParams(gen, model_file)
-        model = MaskedGAN(gen, mode='test')
+        disc = PairedFullDiscriminator()
+        model = MaskedGAN(gen, disc, mode='test')
+        createModelParams(model, model_file)
     else:
         raise ValueError(f"Argument '--model' should be one of 'window', 'base', 'full', or 'mask'. Instead got '{model_name}'")
 

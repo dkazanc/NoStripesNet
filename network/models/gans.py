@@ -74,17 +74,29 @@ class BaseGAN:
         fakeAB = torch.cat((self.realA, self.fakeB), dim=1)
         outFake = self.disc(fakeAB.detach())
         labels = torch.zeros_like(outFake)
-        self.lossD_fake = self.lossGAN(outFake, labels)
+        preds = torch.sigmoid(outFake)
+        preds[preds >= 0.5] = 1
+        preds[preds < 0.5] = 0
+        self.fake_accuracy = preds[preds == labels].nelement() / preds.nelement()
+        if self.mode != 'test':
+            self.lossD_fake = self.lossGAN(outFake, labels)
 
         # Step 2 - calculate discriminator loss on real inputs
         realAB = torch.cat((self.realA, self.realB), dim=1)
         outReal = self.disc(realAB)
         labels = torch.ones_like(outReal)
-        self.lossD_real = self.lossGAN(outReal, labels)
+        preds = torch.sigmoid(outReal)
+        preds[preds >= 0.5] = 1
+        preds[preds < 0.5] = 0
+        self.real_accuracy = preds[preds == labels].nelement() / preds.nelement()
+        if self.mode != 'test':
+            self.lossD_real = self.lossGAN(outReal, labels)
 
         # Step 3 - Combine losses and call backwards pass
-        self.lossD = (self.lossD_fake + self.lossD_real) * 0.5
-        self.lossD.backward()
+        self.accuracy = (self.fake_accuracy + self.real_accuracy) * 0.5
+        if self.mode != 'test':
+            self.lossD = (self.lossD_fake + self.lossD_real) * 0.5
+            self.lossD.backward()
 
     def backwardG(self):
         """Run backward pass for generator"""
@@ -106,8 +118,11 @@ class BaseGAN:
         # Run forward pass
         self.forward()
 
-        # If testing, only forward pass needs to be ran
-        if self.mode != 'test':
+        # If testing, run backwards pass only on discriminator
+        # (so that accuracy can be calculated)
+        if self.mode == 'test':
+            self.backwardD()
+        else:
             # Run backward pass for discriminator
             self.set_requires_grad(self.disc, True)
             self.optimizerD.zero_grad()
