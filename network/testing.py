@@ -24,7 +24,8 @@ def createModelParams(model, path):
         if cont == 'n':
             print("Quitting testing.")
             exit(0)
-        gen.apply(init_weights)
+        model.gen.apply(init_weights)
+        model.disc.apply(init_weights)
     else:
         checkpoint = torch.load(path)
         model.gen.load_state_dict(checkpoint['gen_state_dict'])
