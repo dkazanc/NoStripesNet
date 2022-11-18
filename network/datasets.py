@@ -211,6 +211,9 @@ class MaskedDataset(BaseDataset):
         stripe_idxs = np.where(mask[zero_prepend, :] == 1)[0]
         for stripe_idx in stripe_idxs:
             mask[..., stripe_idx-1:stripe_idx+1] = 1
+
+        if isinstance(clean, torch.Tensor):
+            mask = torch.tensor(mask)
         return mask
 
     def getMask(self, sinogram):
