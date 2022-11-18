@@ -63,7 +63,7 @@ def getTrainingData(dataset, data):
         return stripe, clean
     elif type(dataset) == MaskedDataset:
         clean, stripe, mask = data
-        inpt = torch.cat((stripe, mask), dim=1)
+        inpt = torch.cat((stripe, mask), dim=-3)
         return inpt, clean
     else:
         raise ValueError(f"Dataset '{dataset}' not recognised.")
