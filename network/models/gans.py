@@ -189,6 +189,17 @@ class WindowGAN(BaseGAN):
 
 
 class MaskedGAN(BaseGAN):
+    def __init__(self, gen, disc=None, mode='train', learning_rate=0.002, betas=(0.5, 0.999), lambdaL1=100.0):
+        super().__init__(gen, disc, mode, learning_rate, betas, lambdaL1)
+        self.lossL1 = self.masked_l1_loss
+
+    def masked_l1_loss(self, inpt, target):
+        inpt_mask = inpt[self.mask]
+        target_mask = target[self.mask]
+        loss = nn.functional.l1_loss(inpt_mask, target_mask)
+        return loss
+
+
     def preprocess(self, a, b):
         self.realA = a[:, 0].unsqueeze(dim=1)
         self.mask = a[:, 1].unsqueeze(dim=1).type(torch.bool)
