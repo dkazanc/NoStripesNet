@@ -129,9 +129,9 @@ def train(model, dataloader, epochs, save_every_epoch=False, save_name=None, sav
             # Collate validation losses
             validation_lossesG[i] = model.lossG.item()
             validation_lossesD[i] = model.lossD.item()
-        # Step scheduler with max of all validation losses (best practice?)
-        model.schedulerG.step(validation_lossesG.max())
-        model.schedulerD.step(validation_lossesD.max())
+        # Step scheduler with median of all validation losses (avoids outliers at start of validation)
+        model.schedulerG.step(np.median(validation_lossesG))
+        model.schedulerD.step(np.median(validation_lossesD))
         print(f"Epoch [{epoch + 1}/{epochs}]: Validation finished.")
 
         # At the end of every epoch, save model state
