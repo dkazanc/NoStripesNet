@@ -116,23 +116,24 @@ def sum_diff_grad(data1, data2):
 
 
 def diceCoef(data1, data2):
-    intersect = np.intersect1d(data1, data2)
+    intersect = np.count_nonzero(data1 == data2)
     total_pixels = data1.size + data2.size
-    f1 = (2 * intersect.size) / total_pixels
+    f1 = (2 * intersect) / total_pixels
     return f1
 
 
 def IoU(data1, data2):
-    intersect = np.intersect1d(data1, data2)
-    union = np.union1d(data1, data2)
-    iou = intersect.size / union.size
+    intersect = np.count_nonzero(data1 == data2)
+    union = data1.size + data2.size - intersect
+    iou = intersect / union
     return iou
 
 
-def histogram_intersection(data1, data2, bins=10):
-    hist1, _ = np.histogram(data1, bins=bins)
-    hist2, _ = np.histogram(data2, bins=bins)
-    return np.mean([min(h1, h2) for h1, h2 in zip(hist1, hist2)])
+def histogram_intersection(data1, data2):
+    bin_edges = np.histogram_bin_edges(np.concatenate([data1, data2]))
+    h1, _ = np.histogram(data1, bins=bin_edges)
+    h2, _ = np.histogram(data2, bins=bin_edges)
+    return np.sum(np.minimum(h1, h2)) / data1.size
 
 
 def structural_similarity(data1, data2):
