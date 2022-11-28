@@ -199,7 +199,8 @@ class MaskedDataset(BaseDataset):
             mask = self.getMask(stripe)
         return clean, stripe, mask
 
-    def getSimpleMask(self, clean, stripe):
+    @staticmethod
+    def getSimpleMask(clean, stripe):
         """Simple function to get a mask of the locations of stripes in a sinogram.
         Requires a 'clean' ground truth as a reference point; therefore is not applicable to real-life data."""
         mask = np.zeros_like(clean, dtype=np.bool_)
