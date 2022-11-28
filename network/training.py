@@ -159,7 +159,7 @@ def get_args():
     parser.add_argument('-r', "--root", type=str, default='../data',
                         help="Path to input data used in network")
     parser.add_argument('-m', "--model", type=str, default='window',
-                        help="Type of model to train. Must be one of 'window', 'base', 'full' or 'mask'.")
+                        help="Type of model to train. Must be one of ['window', 'base', 'full', 'mask', 'simple].")
     parser.add_argument('-N', "--size", type=int, default=256,
                         help="Size of image generated (cubic). Also height of sinogram")
     parser.add_argument('-s', "--shifts", type=int, default=5,
@@ -214,46 +214,37 @@ if __name__ == '__main__':
         transforms.Normalize(0.5, 0.5)
     ])
 
-    if args.model == 'window':
+    disc = BaseDiscriminator()
+    gen = BaseUNet()
+    if args.model == 'base':
+        # Create dataset
+        dataset = BaseDataset(root=dataroot, mode='train', tvt=tvt, size=size, shifts=num_shifts,
+                              transform=transform)
+        model = BaseGAN(gen, disc, mode='train', learning_rate=learning_rate, betas=betas)
+    elif args.model == 'window':
         # Create dataset
         dataset = PairedWindowDataset(root=dataroot, mode='train', tvt=tvt, size=size, shifts=num_shifts,
                                       windowWidth=windowWidth, transform=transform)
         # Create models
-        disc = PairedWindowDiscriminator()
-        gen = PairedWindowUNet()
+        disc = WindowDiscriminator()
+        gen = WindowUNet()
         model = WindowGAN(windowWidth, gen, disc, mode='train', learning_rate=learning_rate, betas=betas)
-        start_epoch = createModelParams(model, model_file)
-    elif args.model == 'base':
-        # Create dataset
-        dataset = BaseDataset(root=dataroot, mode='train', tvt=tvt, size=size, shifts=num_shifts,
-                              transform=transform)
-        # Create models
-        disc = SinoDiscriminator()
-        gen = SinoUNet()
-        model = BaseGAN(gen, disc, mode='train', learning_rate=learning_rate, betas=betas)
-        start_epoch = createModelParams(model, model_file)
     elif args.model == 'full':
         # Create dataset
         dataset = PairedFullDataset(root=dataroot, mode='train', tvt=tvt, size=size, shifts=num_shifts,
                                     windowWidth=windowWidth, transform=transform)
-        # Create models
-        disc = PairedFullDiscriminator()
-        gen = PairedFullUNet()
         model = BaseGAN(gen, disc, mode='train', learning_rate=learning_rate, betas=betas)
-        start_epoch = createModelParams(model, model_file)
     elif args.model == 'mask' or args.model == 'simple':
         # Create dataset
         dataset = MaskedDataset(root=dataroot, mode='train', tvt=tvt, size=size, shifts=num_shifts, transform=transform,
                                 simple=args.model=='simple')
-        # Create models
-        disc = PairedFullDiscriminator()
-        gen = PairedFullUNet()
         model = MaskedGAN(gen, disc, mode='train', learning_rate=learning_rate, betas=betas)
-        start_epoch = createModelParams(model, model_file)
     else:
-        raise ValueError(f"Argument '--model' should be one of 'window', 'base', 'full', or 'mask'. Instead got '{args.model}'")
+        raise ValueError(f"Argument '--model' should be one of ['window', 'base', 'full', 'mask', 'simple]. "
+                         f"Instead got '{args.model}'")
 
     # Train
+    start_epoch = createModelParams(model, model_file)
     if save_every_epoch and model_save_dir is None:
         warnings.warn("Argument --save-every-epoch is True, but a save directory has not been specified. "
                       "Models will not be saved at all!", RuntimeWarning)

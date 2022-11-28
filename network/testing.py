@@ -10,7 +10,7 @@ import torchvision.utils as utils
 
 from training import getVisualizer, getTrainingData
 from models import BaseGAN, WindowGAN, MaskedGAN, init_weights
-from models.generators import SinoUNet, PairedWindowUNet, PairedFullUNet
+from models.generators import *
 from models.discriminators import *
 from datasets import PairedWindowDataset, BaseDataset, PairedFullDataset, MaskedDataset
 from visualizers import BaseGANVisualizer, PairedWindowGANVisualizer, MaskedVisualizer
@@ -99,7 +99,7 @@ def get_args():
     parser.add_argument('-r', "--root", type=str, default='../data',
                         help="Path to input data used in network")
     parser.add_argument('-m', "--model", type=str, default='window',
-                        help="Type of model to test. Must be one of 'window', 'base', 'full' or 'mask'.")
+                        help="Type of model to test. Must be one of ['window', 'base', 'full', 'mask', 'simple].")
     parser.add_argument('-f', "--model-file", type=str, default=None,
                         help="Path from which to load models for testing")
     parser.add_argument('-N', "--size", type=int, default=256,
@@ -153,44 +153,35 @@ if __name__ == '__main__':
         transforms.Normalize(0.5, 0.5)
     ])
 
+    disc = BaseDiscriminator()
+    gen = BaseUNet()
     if model_name == 'base':
         # Create dataset and dataloader
         dataset = BaseDataset(root=dataroot, mode='test', tvt=tvt, size=size, shifts=num_shifts,
                               transform=transform)
-        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-        # Create models
-        gen = SinoUNet()
-        disc = SinoDiscriminator()
         model = BaseGAN(gen, disc, mode='test')
-        createModelParams(model, model_file)
     elif model_name == 'window':
         # Create dataset and dataloader
         dataset = PairedWindowDataset(root=dataroot, mode='test', tvt=tvt, size=size, shifts=num_shifts,
                                       windowWidth=windowWidth, transform=transform)
-        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
         # Create models
-        gen = PairedWindowUNet()
-        disc = PairedWindowDiscriminator()
+        gen = WindowUNet()
+        disc = WindowDiscriminator()
         model = WindowGAN(windowWidth, gen, disc, mode='test')
         createModelParams(model, model_file)
     elif model_name == 'full':
         dataset = PairedFullDataset(root=dataroot, mode='test', tvt=tvt, size=size, shifts=num_shifts,
                                     windowWidth=windowWidth, transform=transform)
-        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-        gen = PairedFullUNet()
-        disc = PairedFullDiscriminator()
         model = BaseGAN(gen, disc, mode='test')
-        createModelParams(model, model_file)
     elif model_name == 'mask' or model_name == 'simple':
         dataset = MaskedDataset(root=dataroot, mode='test', tvt=tvt, size=size, shifts=num_shifts,
                                 transform=transform, simple=model_name=='simple')
-        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-        gen = PairedFullUNet()
-        disc = PairedFullDiscriminator()
         model = MaskedGAN(gen, disc, mode='test')
-        createModelParams(model, model_file)
     else:
-        raise ValueError(f"Argument '--model' should be one of 'window', 'base', 'full', or 'mask'. Instead got '{model_name}'")
+        raise ValueError(f"Argument '--model' should be one of ['window', 'base', 'full', 'mask', 'simple]. "
+                         f"Instead got '{model_name}'")
 
     # Test
+    createModelParams(model, model_file)
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
     test(model, dataloader, ms, display_each_batch=display_each_batch, verbose=verbose, visual_only=visual)
