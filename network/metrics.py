@@ -3,8 +3,10 @@ import numpy as np
 import warnings
 import torch
 import torch.nn as nn
-from scipy.ndimage import median_filter, uniform_filter
+from scipy.ndimage import median_filter, uniform_filter1d, binary_dilation
 from skimage.metrics import structural_similarity as ssim, peak_signal_noise_ratio
+from tomopy.prep.stripe import _detect_stripe, remove_large_stripe, _rs_large, _create_matindex
+from larix.methods.misc import STRIPES_DETECT, STRIPES_MERGE
 
 
 def normalise(data):
@@ -60,38 +62,66 @@ def grad_sum_z_max(data):
     return np.max(zscore(np.sum(np.gradient(data, axis=1), axis=0)))
 
 
-def mask_1d(data, R):
-    # calculate low-pass component
-    low_pass = uniform_filter(data, size=4)
+def detect_stripe_vo(sinogram, drop_ratio=0.1, snr=3, filter_size=10):
+    drop_ratio = np.clip(drop_ratio, 0.0, 0.8)
+    (nrow, ncol) = sinogram.shape[-2:]
+    ndrop = int(0.5 * drop_ratio * nrow)
+    sinosort = np.sort(sinogram, axis=0)
+    sinosmooth = median_filter(sinosort, (1, filter_size))
+    list1 = np.mean(sinosort[ndrop:nrow - ndrop], axis=0)
+    list2 = np.mean(sinosmooth[ndrop:nrow - ndrop], axis=0)
+    listfact = np.divide(list1, list2,
+                         out=np.ones_like(list1), where=list2 != 0)
+    # Locate stripes
+    listmask = _detect_stripe(listfact, snr)
+    listmask = binary_dilation(listmask, iterations=1).astype(listmask.dtype)
+    # Make mask 2D
+    mask = np.zeros_like(sinogram, dtype=np.bool_)
+    mask[:, listmask.astype(np.bool_)] = 1
+    return mask
 
-    # calculate abs difference between intensity and low-pass COLUMN-WISE
-    data_1d = np.mean(data - low_pass, axis=0)
 
-    # apply median filter
-    data_filter = median_filter(data_1d, size=12)
+def detect_stripe_mean(sinogram, eta=0.01, kernel_width=3, min_width=2, max_width=25):
+    mask = np.zeros_like(sinogram, dtype=np.bool_)
+    # calculate mean curve, smoothed mean curve, and difference between the two
+    mean_curve = np.mean(sinogram, axis=-2)
+    mean_curve = normalise(mean_curve)
+    smooth_curve = uniform_filter1d(mean_curve, size=5)
+    diff_curve = np.abs(smooth_curve - mean_curve)
+    mask[..., diff_curve > eta] = True
 
-    # normalize by dividing sino with filtered sino
-    data_norm = np.square(data_1d - data_filter)
+    convolutions = np.lib.stride_tricks.sliding_window_view(mask, (sinogram.shape[-2], kernel_width)).squeeze()
+    for i, conv in enumerate(convolutions):
+        if conv[0, 0] and conv[0, -1]:
+            mask[..., i:i + kernel_width] = True
 
-    # locate stripe artifact using Nghia's method
-    npoint = len(data_norm)
-    list_sort = np.sort(data_norm)
-    listx = np.arange(0, npoint, 1.0)
-    ndrop = np.int16(0.25 * npoint)
-    (slope, intercept) = np.polyfit(listx[ndrop:-ndrop - 1], list_sort[ndrop:-ndrop - 1], 1)
-    y_end = intercept + slope * listx[-1]
-    noise_level = np.abs(y_end - intercept)
-    noise_level = np.clip(noise_level, 1e-6, None)
-    val1 = np.abs(list_sort[-1] - y_end) / noise_level
-    val2 = np.abs(intercept - list_sort[0]) / noise_level
-    list_mask = np.zeros(npoint, dtype=np.float32)
-    if val1 >= R:
-        upper_thresh = y_end + noise_level * R * 0.5
-        list_mask[data_norm > upper_thresh] = 1.0
-    if val2 >= R:
-        lower_thresh = intercept - noise_level * R * 0.5
-        list_mask[data_norm <= lower_thresh] = 1.0
-    return list_mask
+    # get thickness of stripes in mask
+    # if thickness is within certain threshold, remove stripe
+    in_stripe = False
+    for i in range(mask.shape[-1]):
+        if mask[..., 0, i] and not in_stripe:
+            start = i
+            in_stripe = True
+        if not mask[..., 0, i] and in_stripe:
+            stop = i
+            in_stripe = False
+            width = stop - start
+            if width < min_width or width > max_width:
+                mask[..., start:stop] = 0
+    return mask
+
+
+def detect_stripe_larix(sinogram, threshold=0.1):
+    (stripe_weights, grad_stats) = STRIPES_DETECT(sinogram, search_window_dims=(1, 7, 1), vert_window_size=5,
+                                                  gradient_gap=3)
+    # threshold weights to get a initialisation of the mask
+    mask = np.zeros_like(stripe_weights, dtype="uint8")
+    mask = np.ascontiguousarray(mask, dtype=np.uint8)
+    mask[stripe_weights > grad_stats[3] / threshold] = 1
+
+    # merge edges that are close to each other
+    mask = STRIPES_MERGE(np.ascontiguousarray(mask, dtype=np.uint8), stripe_width_max_perc=25, dilate=3)
+    return mask.astype(np.bool_)
 
 
 stripe_detection_metrics = [sum_max, total_variation2D, gradient_sum_max, gradient_tv, gradient_sum_tv,
