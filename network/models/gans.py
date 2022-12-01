@@ -5,10 +5,19 @@ import torch.optim as optim
 
 # Weights initialization function
 def init_weights(m):
+    init_type = 'normal'
     classname = m.__class__.__name__
-    if classname.find('Conv') != -1:
-        nn.init.normal_(m.weight.data, 0.0, 0.02)
-    elif classname.find('BatchNorm') != -1:
+    if hasattr(m, 'weight') and 'Conv' in classname:
+        if init_type == 'kaiming':
+            if 'Transpose' in classname:
+                nn.init.kaiming_normal_(m.weight.data, a=0, mode='fan_out', nonlinearity='relu')
+            else:
+                nn.init.kaiming_normal_(m.weight.data, a=0.2, mode='fan_out', nonlinearity='leaky_relu')
+        elif init_type == 'normal':
+            nn.init.normal_(m.weight.data, 0.0, 0.02)
+        else:
+            raise NotImplementedError(f"Init Type {init_type} not recognized.")
+    elif 'BatchNorm' in classname:
         nn.init.normal_(m.weight.data, 1.0, 0.02)
         nn.init.constant_(m.bias.data, 0)
 
