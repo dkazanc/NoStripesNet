@@ -7,22 +7,22 @@ class BaseDiscriminator(nn.Module):
 
         filters = 64
         self.net = nn.Sequential(
-            # Input (2, 402, 362) -> Output (16, 200, 180)
+            # Input (2, 402, 362) -> Output (64, 200, 180)
             self.down(2, filters, batchNorm=False),
 
-            # Input (16, 200, 180) -> Output (32, 99, 89)
+            # Input (64, 200, 180) -> Output (128, 99, 89)
             self.down(filters, filters*2),
 
-            # Input (32, 99, 89) -> Output (64, 48, 43)
+            # Input (128, 99, 89) -> Output (256, 48, 43)
             self.down(filters*2, filters*4),
 
-            # Input (64, 48, 43) -> Output (128, 23, 20)
+            # Input (256, 48, 43) -> Output (512, 23, 20)
             self.down(filters*4, filters*8),
 
-            # Input (128, 23, 20) -> Output (256, 10, 9)
+            # Input (512, 23, 20) -> Output (512, 10, 9)
             self.down(filters*8, filters*8),
 
-            # Input (256, 10, 9) -> Output (512, 4, 4)
+            # Input (512, 10, 9) -> Output (512, 4, 4)
             self.down(filters*8, filters*8, p=(0, 1)),
 
             # Input (512, 4, 4) -> Output (1, 1, 1)
@@ -41,7 +41,7 @@ class BaseDiscriminator(nn.Module):
         return nn.Sequential(
             nn.Conv2d(in_c, out_c, kernel_size=k, stride=s, padding=p, bias=False),
             batchNorm,
-            nn.LeakyReLU(0.2, inplace=True),
+            nn.LeakyReLU(0.2, inplace=True)
         )
 
 
