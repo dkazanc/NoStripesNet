@@ -174,6 +174,8 @@ def get_args():
                         help="Values of the beta parameters used in the Adam optimizer")
     parser.add_argument('-B', "--batch-size", type=int, default=32,
                         help="Batch size used for loading data and for minibatches for Adam optimizer")
+    parser.add_argument('--lambda', type=int, default=100, dest='lambdal1',
+                        help="Parameter by which L1 loss in the generator is multiplied")
     parser.add_argument('-d', "--save-dir", type=str, default=None,
                         help="Directory to save models to once training has finished.")
     parser.add_argument('-f', "--model-file", type=str, default=None,
@@ -200,6 +202,7 @@ if __name__ == '__main__':
     epochs = args.epochs
     learning_rate = args.learning_rate
     betas = args.betas
+    lambdal1 = args.lambdal1
     num_shifts = args.shifts
     batch_size = args.batch_size
     tvt = args.tvt
@@ -220,7 +223,7 @@ if __name__ == '__main__':
         # Create dataset
         dataset = BaseDataset(root=dataroot, mode='train', tvt=tvt, size=size, shifts=num_shifts,
                               transform=transform)
-        model = BaseGAN(gen, disc, mode='train', learning_rate=learning_rate, betas=betas)
+        model = BaseGAN(gen, disc, mode='train', learning_rate=learning_rate, betas=betas, lambdaL1=lambdal1)
     elif args.model == 'window':
         # Create dataset
         dataset = PairedWindowDataset(root=dataroot, mode='train', tvt=tvt, size=size, shifts=num_shifts,
@@ -228,17 +231,17 @@ if __name__ == '__main__':
         # Create models
         disc = WindowDiscriminator()
         gen = WindowUNet()
-        model = WindowGAN(windowWidth, gen, disc, mode='train', learning_rate=learning_rate, betas=betas)
+        model = WindowGAN(windowWidth, gen, disc, mode='train', learning_rate=learning_rate, betas=betas, lambdaL1=lambdal1)
     elif args.model == 'full':
         # Create dataset
         dataset = PairedFullDataset(root=dataroot, mode='train', tvt=tvt, size=size, shifts=num_shifts,
                                     windowWidth=windowWidth, transform=transform)
-        model = BaseGAN(gen, disc, mode='train', learning_rate=learning_rate, betas=betas)
+        model = BaseGAN(gen, disc, mode='train', learning_rate=learning_rate, betas=betas, lambdaL1=lambdal1)
     elif args.model == 'mask' or args.model == 'simple':
         # Create dataset
         dataset = MaskedDataset(root=dataroot, mode='train', tvt=tvt, size=size, shifts=num_shifts, transform=transform,
                                 simple=args.model=='simple')
-        model = MaskedGAN(gen, disc, mode='train', learning_rate=learning_rate, betas=betas)
+        model = MaskedGAN(gen, disc, mode='train', learning_rate=learning_rate, betas=betas, lambdaL1=lambdal1)
     else:
         raise ValueError(f"Argument '--model' should be one of ['window', 'base', 'full', 'mask', 'simple]. "
                          f"Instead got '{args.model}'")
