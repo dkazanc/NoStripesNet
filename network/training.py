@@ -104,9 +104,8 @@ def train(model, dataloader, epochs, save_every_epoch=False, save_name=None, sav
             model.run_passes()
             # Print out some useful info
             if verbose:
-                print(f"\tEpoch [{epoch + 1}/{epochs}], Batch [{i + 1}/{num_batches}], Loss_D: {model.lossD.item()}, "
-                      f"Loss_G: {model.lossG.item()}, Accuracy_D: {model.accuracy} "
-                      f"({model.fake_accuracy}/{model.real_accuracy})")
+                print(f"\tEpoch [{epoch + 1}/{epochs}], Batch [{i + 1}/{num_batches}], Loss_D: {model.lossD.item():2.5f}, "
+                      f"Loss_G: {model.lossG.item():2.5f}, D(x): {model.D_x:.5f}, D(G(x)): {model.D_G_x1:.5f} / {model.D_G_x2:.5f}")
 
         # At the end of every epoch, run through validate dataset
         print(f"Epoch [{epoch + 1}/{epochs}]: Training finished. Validating model...")
@@ -123,9 +122,8 @@ def train(model, dataloader, epochs, save_every_epoch=False, save_name=None, sav
             model.run_passes()
             # Print out some useful info
             if verbose:
-                print(f"\tEpoch [{epoch + 1}/{epochs}], Batch [{i + 1}/{num_batches}], Loss_D: {model.lossD.item()}, "
-                      f"Loss_G: {model.lossG.item()}, Accuracy_D: {model.accuracy} "
-                      f"({model.fake_accuracy}/{model.real_accuracy})")
+                print(f"\tEpoch [{epoch + 1}/{epochs}], Batch [{i + 1}/{num_batches}], Loss_D: {model.lossD.item():2.5f}, "
+                      f"Loss_G: {model.lossG.item():2.5f}, D(x): {model.D_x:.5f}, D(G(x)): {model.D_G_x1:.5f} / {model.D_G_x2:.5f}")
             # Collate validation losses
             validation_lossesG[i] = model.lossG.item()
             validation_lossesD[i] = model.lossD.item()

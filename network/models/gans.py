@@ -83,35 +83,26 @@ class BaseGAN:
         fakeAB = torch.cat((self.realA, self.fakeB), dim=1)
         outFake = self.disc(fakeAB.detach())
         labels = torch.zeros_like(outFake)
-        preds = torch.sigmoid(outFake)
-        preds[preds >= 0.5] = 1
-        preds[preds < 0.5] = 0
-        self.fake_accuracy = preds[preds == labels].nelement() / preds.nelement()
-        if self.mode != 'test':
-            self.lossD_fake = self.lossGAN(outFake, labels)
+        self.D_x = torch.sigmoid(outFake).mean().item()
+        self.lossD_fake = self.lossGAN(outFake, labels)
 
         # Step 2 - calculate discriminator loss on real inputs
         realAB = torch.cat((self.realA, self.realB), dim=1)
         outReal = self.disc(realAB)
         labels = torch.ones_like(outReal)
-        preds = torch.sigmoid(outReal)
-        preds[preds >= 0.5] = 1
-        preds[preds < 0.5] = 0
-        self.real_accuracy = preds[preds == labels].nelement() / preds.nelement()
-        if self.mode != 'test':
-            self.lossD_real = self.lossGAN(outReal, labels)
+        self.D_G_x1 = torch.sigmoid(outReal).mean().item()
+        self.lossD_real = self.lossGAN(outReal, labels)
 
         # Step 3 - Combine losses and call backwards pass
-        self.accuracy = (self.fake_accuracy + self.real_accuracy) * 0.5
-        if self.mode != 'test':
-            self.lossD = (self.lossD_fake + self.lossD_real) * 0.5
-            self.lossD.backward()
+        self.lossD = (self.lossD_fake + self.lossD_real) * 0.5
+        self.lossD.backward()
 
     def backwardG(self):
         """Run backward pass for generator"""
         # Step 1 - Caluclate GAN loss for fake images, i.e. disc incorrect predictions
         fakeAB = torch.cat((self.realA, self.fakeB), dim=1)
         outFake = self.disc(fakeAB)
+        self.D_G_x2 = torch.sigmoid(outFake).mean().item()
         labels = torch.ones_like(outFake)
         self.lossG_GAN = self.lossGAN(outFake, labels)
 
@@ -127,11 +118,8 @@ class BaseGAN:
         # Run forward pass
         self.forward()
 
-        # If testing, run backwards pass only on discriminator
-        # (so that accuracy can be calculated)
-        if self.mode == 'test':
-            self.backwardD()
-        else:
+        # Only run backwards passes if training
+        if self.mode != 'test':
             # Run backward pass for discriminator
             self.set_requires_grad(self.disc, True)
             self.optimizerD.zero_grad()

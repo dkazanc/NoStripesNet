@@ -36,6 +36,12 @@ def batch_metric(metric, data1_batch, data2_batch):
     return np.mean([metric(data1.squeeze().numpy(), data2.squeeze().numpy()) for data1, data2 in zip(data1_batch, data2_batch)])
 
 
+def accuracy(predictions, labels):
+    predictions[predictions >= 0.5] = 1
+    predictions[predictions < 0.5] = 0
+    return predictions[predictions == labels].nelement() / labels.nelement()
+
+
 def test(model, dataloader, metrics, display_each_batch=False, verbose=True, visual_only=False):
     if isinstance(dataloader.dataset, Subset):
         dataset = dataloader.dataset.dataset
@@ -55,6 +61,7 @@ def test(model, dataloader, metrics, display_each_batch=False, verbose=True, vis
         model.run_passes()
 
         if isinstance(model, WindowGAN):
+            model.realA = dataset.combineWindows(model.realAs)
             model.realB = dataset.combineWindows(model.realBs)
             model.fakeB = dataset.combineWindows(model.fakeBs)
 
@@ -64,15 +71,25 @@ def test(model, dataloader, metrics, display_each_batch=False, verbose=True, vis
         # Calculate model evaluation metrics
         metric_scores = {metric.__name__: batch_metric(metric, model.realB, model.fakeB) for metric in metrics}
         [overall_mean_scores[key].append(metric_scores[key]) for key in metric_scores]
-        overall_accuracies['total'] += model.accuracy
-        overall_accuracies['fake'] += model.fake_accuracy
-        overall_accuracies['real'] += model.real_accuracy
+        # Calculate discriminator accuracies
+        # fake
+        disc_in = torch.cat((model.realA, model.fakeB), dim=1)
+        disc_out = model.disc(disc_in)
+        fake_accuracy = accuracy(torch.sigmoid(disc_out), torch.zeros_like(disc_out))
+        # real
+        disc_in = torch.cat((model.realA, model.realB), dim=1)
+        disc_out = model.disc(disc_in)
+        real_accuracy = accuracy(torch.sigmoid(disc_out), torch.ones_like(disc_out))
+        total_accuracy = (fake_accuracy + real_accuracy) * 0.5
+        overall_accuracies['total'] += total_accuracy
+        overall_accuracies['fake'] += fake_accuracy
+        overall_accuracies['real'] += real_accuracy
 
         if display_each_batch:
             # Print test statistics for each batch
             [print(f"\t\t{key: <23}: {np.mean(overall_mean_scores[key])}") for key in overall_mean_scores]
             # Print discriminator accuracy for each batch
-            print(f"\t\tDiscriminator Accuracy - Total: {model.accuracy}, Fake: {model.fake_accuracy}, Real: {model.real_accuracy}")
+            print(f"\t\tDiscriminator Accuracy - Total: {total_accuracy}, Fake: {fake_accuracy}, Real: {real_accuracy}")
             # Plot images each batch
             if verbose:
                 print(f"\t\tPlotting batch [{i + 1}/{len(dataloader)}]...")
