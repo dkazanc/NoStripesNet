@@ -23,7 +23,7 @@ class BaseDataset(Dataset):
 
         # Create list of all datasets
         # and lists for train/test/validate datasets
-        self.all_datasets = os.listdir(self.root)
+        self.all_datasets = sorted(os.listdir(self.root))
         num_train = int((tvt[0] / sum(tvt)) * len(self.all_datasets))
         num_validate = int((tvt[1] / sum(tvt)) * len(self.all_datasets))
         num_test = int((tvt[2] / sum(tvt)) * len(self.all_datasets))
