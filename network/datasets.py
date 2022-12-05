@@ -229,6 +229,13 @@ class MaskedDataset(BaseDataset):
         mask_larix = detect_stripe_larix(sino_np).astype(int)
         mask_sum = mask_vo + mask_mean + mask_larix
         mask_sum[mask_sum < 2] = 0
+
+        # if there is a 3 pixel gap or less between stripes, merge them
+        convolutions = np.lib.stride_tricks.sliding_window_view(mask_sum, (sinogram.shape[-2], self.k+2)).squeeze()
+        for i, conv in enumerate(convolutions):
+            if conv[0, 0] and conv[0, -1]:
+                mask_sum[..., i:i + self.k+2] = True
+
         if isinstance(sinogram, torch.Tensor):
             mask_sum = torch.tensor(mask_sum, dtype=torch.bool).unsqueeze(0)
         elif isinstance(sinogram, np.ndarray):
