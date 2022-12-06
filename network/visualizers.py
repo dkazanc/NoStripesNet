@@ -72,9 +72,12 @@ class BaseGANVisualizer:
         fake = self.model.fakeB.detach()[item]
         images = [clean, stripe, fake]
         images += batch_reconstruct(torch.stack(images, dim=0), self.size)
+        titles = ['Target', 'Input', 'Output']
         for i, img in enumerate(images):
             plt.subplot(2, 3, i + 1)
             plt.imshow(img.squeeze(), cmap='gray')
+            if i < len(titles):
+                plt.title(titles[i])
             plt.axis('off')
         plt.show()
 
@@ -170,9 +173,12 @@ class PairedWindowGANVisualizer(BaseGANVisualizer):
         fake = self.model.fakeB.detach()[item]
         images = [clean, stripe, fake]
         images += batch_reconstruct(torch.stack(images, dim=0), self.size)
+        titles = ['Target', 'Input', 'Output']
         for i, img in enumerate(images):
             plt.subplot(2, 3, i + 1)
             plt.imshow(img.squeeze(), cmap='gray')
+            if i < len(titles):
+                plt.title(titles[i])
             plt.axis('off')
         plt.show()
 
@@ -189,9 +195,12 @@ class MaskedVisualizer(BaseGANVisualizer):
         images = [clean, stripe, mask, gen_in, gen_out]
         images += batch_reconstruct(torch.stack(images, dim=0), self.size)
 
+        titles = ['Target', 'With Artifacts', 'Mask', 'Input', 'Output']
         for i, img in enumerate(images):
             plt.subplot(2, 5, i+1)
             plt.imshow(img.squeeze(), cmap='gray')
+            if i < len(titles):
+                plt.title(titles[i])
             plt.axis('off')
         plt.show()
 
