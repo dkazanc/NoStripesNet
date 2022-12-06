@@ -117,16 +117,36 @@ This means that most of the sinogram data will stay the same - only the parts th
 The hope is that this will increase the resolution.<br>
 
 This new method requires an accurate way of detecting the location of stripes within a sinogram.<br>
-The current method, inspired by that in [\[7\]](#references), involves calculating the mean curve of an image, smoothing that curve,
-calculating the difference between these two curves, then thresholding this difference.<br>
-From this, a mask is made by setting all the pixels where a stripe is detected to 1, and all others to zero.<br>
+The current method consists of three approaches, which are then all combined to form a mask.<br>
+- The first approach is that of [\[7\]](#references), as implemented in the [TomoPy](https://github.com/tomopy/tomopy) package.<br>
+- The second is the stripe detection method implemented in the [Larix](https://github.com/dkazanc/larix) package.<br>
+- The third is inspired by that in [\[8\]](#references), and involves calculating the mean curve of an image, smoothing that curve,
+calculating the difference between these two curves, then thresholding this difference.
 Then, some simple convolutional smoothing is applied to this mask, followed by a check to constrain the widths of each
-solid (i.e. ones) section of the mask.<br>
+positive (i.e. ones) section of the mask.<br>
+
+These three separate masks are combined by summing them all together,
+and a final mask is formed by the sections of this sum whose value is greater than 2.<br>
+In other words, two or more approaches have to agree on the location of a stripe for it to be included in the final mask.
+<br>
 
 This new method involving masks is effective; it successfully stops the loss of resolution from occuring.<br>
 However, some new artifacts are still introduced.
     ![Masked GAN](images/mask_example2.png)
-These can be reduced by adjusting hyperparameters and training for longer.<br>
+
+It was not immediately clear why the network was still introducing new artifacts.<br>
+One possibility is that all the noise and other background information in the simulated images was confusing the network,
+affecting its ability to successfully inpaint.<br>
+So, it was decided to train the network with a more *simple* set of data; images that did not contain any noise.<br>
+The results of this can be seen below:
+    ![Simpler Data](images/simple_mask.png)
+It is clear the simpler dataset leads to much better performance, reinforcing the theory that noise is complicating
+the network's outcomes.<br>
+
+Now, the challenge is to get results as good as this on the noisy data.<br>
+The current approach is to first optimize the model's performance on the simple data,
+then using transfer learning to train that model on the more realistic data.<br>
+This is currently being experimented with.
 
 
 ## References
@@ -143,4 +163,6 @@ These can be reduced by adjusting hyperparameters and training for longer.<br>
 <br><br>
 [6] [Ghani, M.U. and Karl, W.C., 2019. Fast enhanced CT metal artifact reduction using data domain deep learning. IEEE Transactions on Computational Imaging, 6, pp.181-193.](https://doi.org/10.48550/arXiv.1904.04691)
 <br><br>
-[7] [Ashrafuzzaman, A.N.M., Lee, S.Y. and Hasan, M.K., 2011. A self-adaptive approach for the detection and correction of stripes in the sinogram: suppression of ring artifacts in CT imaging. EURASIP Journal on Advances in Signal Processing, 2011, pp.1-13.](https://doi.org/10.1155/2011/183547)
+[7] [Vo, N.T., Atwood, R.C. and Drakopoulos, M., 2018. Superior techniques for eliminating ring artifacts in X-ray micro-tomography. Optics express, 26(22), pp.28396-28412.](https://doi.org/10.1364/OE.26.028396)
+<br><br>
+[8] [Ashrafuzzaman, A.N.M., Lee, S.Y. and Hasan, M.K., 2011. A self-adaptive approach for the detection and correction of stripes in the sinogram: suppression of ring artifacts in CT imaging. EURASIP Journal on Advances in Signal Processing, 2011, pp.1-13.](https://doi.org/10.1155/2011/183547)
