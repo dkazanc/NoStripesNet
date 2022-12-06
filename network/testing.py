@@ -115,7 +115,7 @@ def get_args():
     parser = argparse.ArgumentParser(description="Test neural network.")
     parser.add_argument('-r', "--root", type=str, default='../data',
                         help="Path to input data used in network")
-    parser.add_argument('-m', "--model", type=str, default='window',
+    parser.add_argument('-m', "--model", type=str, default='base',
                         help="Type of model to test. Must be one of ['window', 'base', 'full', 'mask', 'simple].")
     parser.add_argument('-f', "--model-file", type=str, default=None,
                         help="Path from which to load models for testing")
