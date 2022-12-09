@@ -32,7 +32,7 @@ def saveModel(model, epoch, save_dir, save_name):
                os.path.join(save_dir, f"{save_name}_{epoch}.tar"))
 
 
-def createModelParams(model, path):
+def createModelParams(model, path, device):
     if path is None:
         print(f"Training new model from scratch.")
         model.gen.apply(init_weights)
@@ -40,7 +40,7 @@ def createModelParams(model, path):
         return 0
     else:
         print(f"Loading model from '{path}'")
-        checkpoint = torch.load(path)
+        checkpoint = torch.load(path, map_location=device)
         model.gen.load_state_dict(checkpoint['gen_state_dict'])
         model.optimizerG.load_state_dict(checkpoint['gen_optimizer_state_dict'])
         model.lossG = checkpoint['gen_loss']
@@ -220,13 +220,20 @@ if __name__ == '__main__':
         transforms.Normalize(0.5, 0.5)
     ])
 
+    # Use GPU if available
+    if torch.cuda.is_available():
+        device = torch.device('cuda')
+    else:
+        device = torch.device('cpu')
+
     disc = BaseDiscriminator()
     gen = BaseUNet()
     if args.model == 'base':
         # Create dataset
         dataset = BaseDataset(root=dataroot, mode='train', tvt=tvt, size=size, shifts=num_shifts,
                               transform=transform)
-        model = BaseGAN(gen, disc, mode='train', learning_rate=learning_rate, betas=betas, lambdaL1=lambdal1)
+        model = BaseGAN(gen, disc, mode='train', learning_rate=learning_rate, betas=betas, lambdaL1=lambdal1,
+                        device=device)
     elif args.model == 'window':
         # Create dataset
         dataset = PairedWindowDataset(root=dataroot, mode='train', tvt=tvt, size=size, shifts=num_shifts,
@@ -234,23 +241,26 @@ if __name__ == '__main__':
         # Create models
         disc = WindowDiscriminator()
         gen = WindowUNet()
-        model = WindowGAN(windowWidth, gen, disc, mode='train', learning_rate=learning_rate, betas=betas, lambdaL1=lambdal1)
+        model = WindowGAN(windowWidth, gen, disc, mode='train', learning_rate=learning_rate, betas=betas,
+                          lambdaL1=lambdal1, device=device)
     elif args.model == 'full':
         # Create dataset
         dataset = PairedFullDataset(root=dataroot, mode='train', tvt=tvt, size=size, shifts=num_shifts,
                                     windowWidth=windowWidth, transform=transform)
-        model = BaseGAN(gen, disc, mode='train', learning_rate=learning_rate, betas=betas, lambdaL1=lambdal1)
+        model = BaseGAN(gen, disc, mode='train', learning_rate=learning_rate, betas=betas, lambdaL1=lambdal1,
+                        device=device)
     elif args.model == 'mask' or args.model == 'simple':
         # Create dataset
         dataset = MaskedDataset(root=dataroot, mode='train', tvt=tvt, size=size, shifts=num_shifts, transform=transform,
                                 simple=args.model=='simple')
-        model = MaskedGAN(gen, disc, mode='train', learning_rate=learning_rate, betas=betas, lambdaL1=lambdal1)
+        model = MaskedGAN(gen, disc, mode='train', learning_rate=learning_rate, betas=betas, lambdaL1=lambdal1,
+                          device=device)
     else:
         raise ValueError(f"Argument '--model' should be one of ['window', 'base', 'full', 'mask', 'simple]. "
                          f"Instead got '{args.model}'")
 
     # Train
-    start_epoch = createModelParams(model, model_file)
+    start_epoch = createModelParams(model, model_file, device)
     if save_every_epoch and model_save_dir is None:
         warnings.warn("Argument --save-every-epoch is True, but a save directory has not been specified. "
                       "Models will not be saved at all!", RuntimeWarning)

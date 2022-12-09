@@ -71,9 +71,9 @@ class BaseGANVisualizer:
 
     def plot_one(self):
         item = np.random.randint(0, self.model.realA.shape[0])
-        clean = self.model.realB.detach()[item]
-        stripe = self.model.realA.detach()[item]
-        fake = self.model.fakeB.detach()[item]
+        clean = self.model.realB.detach().cpu()[item]
+        stripe = self.model.realA.detach().cpu()[item]
+        fake = self.model.fakeB.detach().cpu()[item]
         images = [clean, stripe, fake]
         images += batch_reconstruct(torch.stack(images, dim=0), self.size)
         titles = ['Target', 'Input', 'Output']
@@ -113,9 +113,9 @@ class BaseGANVisualizer:
         """Function to plot a batch of *reconstructed* real inputs, target outputs and generated outputs.
         Before running this function, at least one train or test pass must have been made."""
         # Reconstruct all
-        input_recon = batch_reconstruct(self.model.realA.detach(), self.size)
-        target_recon = batch_reconstruct(self.model.realB.detach(), self.size)
-        fake_recon = batch_reconstruct(self.model.fakeB.detach(), self.size)
+        input_recon = batch_reconstruct(self.model.realA.detach().cpu(), self.size)
+        target_recon = batch_reconstruct(self.model.realB.detach().cpu(), self.size)
+        fake_recon = batch_reconstruct(self.model.fakeB.detach().cpu(), self.size)
         # Plot clean vs centre vs generated reconstructions
         plt.figure(figsize=(8, 8))
         plt.subplot(131)
@@ -140,8 +140,8 @@ class BaseGANVisualizer:
         real_outputs = torch.cat((self.model.realA[:5], self.model.realB[:5]), dim=1)
         fake_outputs = torch.cat((self.model.realA[:5], self.model.fakeB[:5]), dim=1)
         disc_inputs = torch.cat((real_outputs, fake_outputs), dim=0)
-        disc_outputs = self.model.disc(disc_inputs).detach()
-        disc_inputs.detach_()
+        disc_outputs = self.model.disc(disc_inputs).detach().cpu()
+        disc_inputs = disc_inputs.detach().cpu()
         for i in range(10):
             plt.subplot(2, 5, i+1)
             plt.imshow(disc_inputs[i][1], cmap='gray')
@@ -156,25 +156,25 @@ class PairedWindowGANVisualizer(BaseGANVisualizer):
         super().__init__(model, dataset, size)
 
     def plot_real_vs_fake_batch(self):
-        self.model.realA = self.dataset.combineWindows(self.model.realAs)
-        self.model.realB = self.dataset.combineWindows(self.model.realBs)
-        self.model.fakeB = self.dataset.combineWindows(self.model.fakeBs)
+        self.model.realA = self.dataset.combineWindows(self.model.realAs).detach.cpu()
+        self.model.realB = self.dataset.combineWindows(self.model.realBs).detach.cpu()
+        self.model.fakeB = self.dataset.combineWindows(self.model.fakeBs).detach.cpu()
         super().plot_real_vs_fake_batch()
 
     def plot_real_vs_fake_recon(self):
-        self.model.realA = self.dataset.combineWindows(self.model.realAs)
-        self.model.realB = self.dataset.combineWindows(self.model.realBs)
-        self.model.fakeB = self.dataset.combineWindows(self.model.fakeBs)
+        self.model.realA = self.dataset.combineWindows(self.model.realAs).detach.cpu()
+        self.model.realB = self.dataset.combineWindows(self.model.realBs).detach.cpu()
+        self.model.fakeB = self.dataset.combineWindows(self.model.fakeBs).detach.cpu()
         super().plot_real_vs_fake_recon()
 
     def plot_one(self):
-        self.model.realA = self.dataset.combineWindows(self.model.realAs)
-        self.model.realB = self.dataset.combineWindows(self.model.realBs)
-        self.model.fakeB = self.dataset.combineWindows(self.model.fakeBs)
+        self.model.realA = self.dataset.combineWindows(self.model.realAs).detach.cpu()
+        self.model.realB = self.dataset.combineWindows(self.model.realBs).detach.cpu()
+        self.model.fakeB = self.dataset.combineWindows(self.model.fakeBs).detach.cpu()
         item = np.random.randint(0, self.model.realA.shape[0])
-        clean = self.model.realB.detach()[item]
-        stripe = self.model.realA.detach()[item]
-        fake = self.model.fakeB.detach()[item]
+        clean = self.model.realB.detach().cpu()[item]
+        stripe = self.model.realA.detach().cpu()[item]
+        fake = self.model.fakeB.detach().cpu()[item]
         images = [clean, stripe, fake]
         images += batch_reconstruct(torch.stack(images, dim=0), self.size)
         titles = ['Target', 'Input', 'Output']
@@ -190,12 +190,12 @@ class PairedWindowGANVisualizer(BaseGANVisualizer):
 class MaskedVisualizer(BaseGANVisualizer):
     def plot_one(self):
         item = np.random.randint(0, self.model.realA.shape[0])
-        clean = self.model.realB.detach()[item]
-        stripe = self.model.realA.detach()[item]
-        mask = self.model.mask.detach()[item]
+        clean = self.model.realB.detach().cpu()[item]
+        stripe = self.model.realA.detach().cpu()[item]
+        mask = self.model.mask.detach().cpu()[item]
         gen_in = stripe.clone()
         gen_in[mask] = 0
-        gen_out = self.model.fakeB.detach()[item]
+        gen_out = self.model.fakeB.detach().cpu()[item]
         images = [clean, stripe, mask, gen_in, gen_out]
         images += batch_reconstruct(torch.stack(images, dim=0), self.size)
 

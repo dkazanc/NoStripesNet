@@ -17,7 +17,7 @@ from visualizers import BaseGANVisualizer, PairedWindowGANVisualizer, MaskedVisu
 from metrics import *
 
 
-def createModelParams(model, path):
+def createModelParams(model, path, device):
     if path is None:
         print("No model directory specified, so new model will be created. This model will not have been trained.")
         cont = input("Are you sure you want to continue? ([y]/n): ")
@@ -27,13 +27,14 @@ def createModelParams(model, path):
         model.gen.apply(init_weights)
         model.disc.apply(init_weights)
     else:
-        checkpoint = torch.load(path)
+        checkpoint = torch.load(path, map_location=device)
         model.gen.load_state_dict(checkpoint['gen_state_dict'])
         model.disc.load_state_dict(checkpoint['disc_state_dict'])
 
 
 def batch_metric(metric, data1_batch, data2_batch):
-    return np.mean([metric(data1.squeeze().numpy(), data2.squeeze().numpy()) for data1, data2 in zip(data1_batch, data2_batch)])
+    return np.mean([metric(data1.squeeze().detach().cpu().numpy(), data2.squeeze().detach().cpu().numpy())
+                    for data1, data2 in zip(data1_batch, data2_batch)])
 
 
 def accuracy(predictions, labels):
@@ -170,13 +171,19 @@ if __name__ == '__main__':
         transforms.Normalize(0.5, 0.5)
     ])
 
+    # Use GPU if available
+    if torch.cuda.is_available():
+        device = torch.device('cuda')
+    else:
+        device = torch.device('cpu')
+
     disc = BaseDiscriminator()
     gen = BaseUNet()
     if model_name == 'base':
         # Create dataset and dataloader
         dataset = BaseDataset(root=dataroot, mode='test', tvt=tvt, size=size, shifts=num_shifts,
                               transform=transform)
-        model = BaseGAN(gen, disc, mode='test')
+        model = BaseGAN(gen, disc, mode='test', device=device)
     elif model_name == 'window':
         # Create dataset and dataloader
         dataset = PairedWindowDataset(root=dataroot, mode='test', tvt=tvt, size=size, shifts=num_shifts,
@@ -184,21 +191,20 @@ if __name__ == '__main__':
         # Create models
         gen = WindowUNet()
         disc = WindowDiscriminator()
-        model = WindowGAN(windowWidth, gen, disc, mode='test')
-        createModelParams(model, model_file)
+        model = WindowGAN(windowWidth, gen, disc, mode='test', device=device)
     elif model_name == 'full':
         dataset = PairedFullDataset(root=dataroot, mode='test', tvt=tvt, size=size, shifts=num_shifts,
                                     windowWidth=windowWidth, transform=transform)
-        model = BaseGAN(gen, disc, mode='test')
+        model = BaseGAN(gen, disc, mode='test', device=device)
     elif model_name == 'mask' or model_name == 'simple':
         dataset = MaskedDataset(root=dataroot, mode='test', tvt=tvt, size=size, shifts=num_shifts,
                                 transform=transform, simple=model_name=='simple')
-        model = MaskedGAN(gen, disc, mode='test')
+        model = MaskedGAN(gen, disc, mode='test', device=device)
     else:
         raise ValueError(f"Argument '--model' should be one of ['window', 'base', 'full', 'mask', 'simple]. "
                          f"Instead got '{model_name}'")
 
     # Test
-    createModelParams(model, model_file)
+    createModelParams(model, model_file, device)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
     test(model, dataloader, ms, display_each_batch=display_each_batch, verbose=verbose, visual_only=visual)

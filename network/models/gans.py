@@ -23,16 +23,21 @@ def init_weights(m):
 
 
 class BaseGAN:
-    def __init__(self, gen, disc=None, mode='train', learning_rate=0.01, betas=(0.5, 0.999), lambdaL1=100.0):
-        self.gen = gen
-        self.disc = disc
+    def __init__(self, gen, disc=None, mode='train', learning_rate=0.01, betas=(0.5, 0.999), lambdaL1=100.0,
+                 device=None):
+        if device is None:
+            self.device = torch.device('cpu')
+        else:
+            self.device = device
+        self.gen = gen.to(self.device)
+        self.disc = disc.to(self.device)
         self.setMode(mode)
         self.lossD_values = []
         self.lossG_values = []
 
         # if training, create discriminator and set up loss & optimizer functions
         if self.mode == 'train':
-            self.lossGAN = nn.BCEWithLogitsLoss()
+            self.lossGAN = nn.BCEWithLogitsLoss().to(self.device)
             self.lossL1 = nn.L1Loss()
             self.lambdaL1 = lambdaL1
             self.optimizerG = optim.Adam(self.gen.parameters(), lr=learning_rate, betas=betas)
@@ -69,8 +74,8 @@ class BaseGAN:
         self.mode = mode
 
     def preprocess(self, a, b):
-        self.realA = a
-        self.realB = b
+        self.realA = a.to(self.device)
+        self.realB = b.to(self.device)
 
     def forward(self):
         """Run forward pass, i.e. generate batch of fake images"""
@@ -145,8 +150,10 @@ class BaseGAN:
 
 
 class WindowGAN(BaseGAN):
-    def __init__(self, width, gen, disc=None, mode='train', learning_rate=0.01, betas=(0.5, 0.999), lambdaL1=100.0):
-        super().__init__(gen, disc, mode=mode, learning_rate=learning_rate, betas=betas, lambdaL1=lambdaL1)
+    def __init__(self, width, gen, disc=None, mode='train', learning_rate=0.01, betas=(0.5, 0.999), lambdaL1=100.0,
+                 device=None):
+        super().__init__(gen, disc, mode=mode, learning_rate=learning_rate, betas=betas, lambdaL1=lambdaL1,
+                         device=device)
         self.windowWidth = width
         self.realAs, self.realBs = [], []
 
@@ -186,8 +193,10 @@ class WindowGAN(BaseGAN):
 
 
 class MaskedGAN(BaseGAN):
-    def __init__(self, gen, disc=None, mode='train', learning_rate=0.002, betas=(0.5, 0.999), lambdaL1=100.0):
-        super().__init__(gen, disc, mode, learning_rate, betas, lambdaL1)
+    def __init__(self, gen, disc=None, mode='train', learning_rate=0.002, betas=(0.5, 0.999), lambdaL1=100.0,
+                 device=None):
+        super().__init__(gen, disc, mode=mode, learning_rate=learning_rate, betas=betas, lambdaL1=lambdaL1,
+                         device=device)
         self.lossL1 = self.masked_l1_loss
 
     def masked_l1_loss(self, inpt, target):
@@ -198,9 +207,9 @@ class MaskedGAN(BaseGAN):
 
 
     def preprocess(self, a, b):
-        self.realA = a[:, 0].unsqueeze(dim=1)
-        self.mask = a[:, 1].unsqueeze(dim=1).type(torch.bool)
-        self.realB = b
+        self.realA = a[:, 0].unsqueeze(dim=1).to(self.device)
+        self.mask = a[:, 1].unsqueeze(dim=1).type(torch.bool).to(self.device)
+        self.realB = b.to(self.device)
 
     def forward(self):
         gen_in = self.realA.clone()
