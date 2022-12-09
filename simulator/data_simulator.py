@@ -93,37 +93,63 @@ def simulateFlats(ProjData3D, N_size, I0=40000, flatsnum=20, shifted_positions_n
                   output_path=None, sampleNo=None, verbose=False, visual=False):
     if verbose:
         print("Simulate synthetic flat fields ")
-    # Moving the flat field data verically to emulate the movement of the phantom (sample)
+    # Moving the flat field data vertically to emulate the movement of the phantom (sample)
 
     Horiz_det = int(np.sqrt(2) * N_size)  # detector column count (horizontal)
     Vert_det = N_size  # detector row count (vertical) (no reason for it to be > N)
     angles_num = int(0.5 * np.pi * N_size)  # angles number
     intens_max_clean = np.max(ProjData3D)
 
-    off_center_index = -int(shifted_positions_no / 2) * int(shift_step) + int(shift_step)
+    off_center_index = -int(shifted_positions_no / 2) * int(shift_step)
 
     projData3D_norm = np.zeros((Vert_det, angles_num, Horiz_det, shifted_positions_no))
 
+    if visual:
+        plt.figure()
+        plt.suptitle("2D Projection with a shifted flat field")
+
+    # Simulate flat fields
+    [flats_no_noise, flats_combined3D, blurred_speckles_map] = synth_flats_mod(ProjData3D,
+                                                                               source_intensity=I0,
+                                                                               variations_number=3,
+                                                                               arguments_Bessel=(1, 25),
+                                                                               specklesize=3,
+                                                                               kbar=2,
+                                                                               jitter_projections=0.0,
+                                                                               sigmasmooth=2,
+                                                                               flatsnum=flatsnum)
+    flats_unshifted = flats_no_noise.copy()
+    flats_3D_unshifted = flats_combined3D.copy()
+    speckles_unshifted = blurred_speckles_map.copy()
+
+    # Make "clean" projection; i.e. with flat field noise but no stripes
+    # Hence why variations_number = -1 and detectors_miscallibration = 0
+    projData3D_clean = add_flats_proj(ProjData3D,
+                                      flats_no_noise,
+                                      flats_combined3D,
+                                      blurred_speckles_map,
+                                      source_intensity=I0,
+                                      variations_number=-1,
+                                      detectors_miscallibration=0.0,
+                                      jitter_projections=0.0)
+    projData3D_clean = normaliser(projData3D_clean, flats_combined3D, darks=None, log='true', method='mean')
+    projData3D_clean *= intens_max_clean
+    # Save "clean" projection; i.e. with flat field noise but no stripes
+    if output_path:
+        if sampleNo is None:
+            raise RuntimeError("If supplying an output path, a sample number must also be supplied.")
+        cleanPath = os.path.join(output_path, 'clean')
+        filename = os.path.join(cleanPath, str(sampleNo).zfill(4) + '_clean')
+        save3DTiff(projData3D_clean, filename)
+
+    # Loop through shifts and add flats + speckles (causing stripes) to each shift
     for i in range(0, shifted_positions_no):
         if verbose:
             print("Offset vertical index {}".format(off_center_index))
-        [flats_no_noise, flats_combined3D, blurred_speckles_map] = synth_flats_mod(ProjData3D,
-                                                                                   source_intensity=I0,
-                                                                                   variations_number=3,
-                                                                                   arguments_Bessel=(1, 25),
-                                                                                   specklesize=3,
-                                                                                   kbar=2,
-                                                                                   jitter_projections=0.0,
-                                                                                   sigmasmooth=2,
-                                                                                   flatsnum=flatsnum)
-        if visual:
-            plt.figure()
-            plt.imshow(flats_no_noise)
-            plt.title('2D flat field without noise')
-            plt.show()
 
-        flats_no_noise = np.roll(flats_no_noise, off_center_index, axis=0)
-        flats_combined3D = np.roll(flats_combined3D, off_center_index, axis=0)
+        flats_no_noise = np.roll(flats_unshifted, off_center_index, axis=0)
+        flats_combined3D = np.roll(flats_3D_unshifted, off_center_index, axis=0)
+        blurred_speckles_map = np.roll(speckles_unshifted, off_center_index, axis=0)
         off_center_index += shift_step
 
         # adding flats to clean projections
@@ -133,19 +159,25 @@ def simulateFlats(ProjData3D, N_size, I0=40000, flatsnum=20, shifted_positions_n
                                         blurred_speckles_map,
                                         source_intensity=I0,
                                         variations_number=3,
-                                        detectors_miscallibration=0.07,
+                                        detectors_miscallibration=0.35,
                                         jitter_projections=0.0)
 
-        if visual:
-            plt.figure()
-            plt.imshow(projData3D_raw[:, 0, :])
-            plt.title('2D Projection (before normalisation) with a shifted flat field')
-            plt.show()
 
-        print("Normalise projections with flats")
+        if verbose:
+            print("Normalise projections with flats")
         projData3D_norm[:, :, :, i] = normaliser(projData3D_raw, flats_combined3D, darks=None, log='true', method='mean')
         projData3D_norm[:, :, :, i] *= intens_max_clean
         # note that I'm saving the result in 4D data array for demonstration purposes ONLY
+
+        if visual:
+            images = [flats_unshifted, flats_no_noise, ProjData3D[:, 0, :], projData3D_raw[:, 0, :], projData3D_norm[:, 0, :]]
+            titles = ['2D flat field unshifted', f'2D flat field shifted by {off_center_index - shift_step}', 'Input',
+                      'Before Normalization', 'After Normalization']
+            idx = i * len(images)
+            for j in range(len(images)):
+                plt.subplot(shifted_positions_no, 5, idx + j+1)
+                plt.imshow(images[j], cmap='gray')
+                plt.title(titles[j])
 
         # Save normalised projection (i.e. sinogram with artifacts)
         if output_path:
@@ -155,24 +187,37 @@ def simulateFlats(ProjData3D, N_size, I0=40000, flatsnum=20, shifted_positions_n
             filename = os.path.join(shiftDir, str(sampleNo).zfill(4)+'_shift'+str(i).zfill(2))
             save3DTiff(projData3D_norm[:, :, :, i], filename)
 
-    return projData3D_norm
+    if visual:
+        plt.show()
+    return projData3D_clean, projData3D_norm
 
 # %%%
 
 
-def simulateStripes(ProjData3D, N_size, I0=40000, flatsnum=20, shifted_positions_no=5, shift_step=2,
+def simulateStripes(ProjData3D, percentage=1.2, max_thickness=3.0, intensity=0.25, kind='mix', variability=0,
                   output_path=None, sampleNo=None, verbose=False, visual=False):
-    _stripes_ = {'stripes_percentage': 1.2,
-                 'stripes_maxthickness': 3.0,
-                 'stripes_intensity': 0.25,
-                 'stripes_type': 'mix',
-                 'stripes_variability': 0}
+    if verbose:
+        print("Simulating stripes on projection data...")
+    _stripes_ = {'stripes_percentage': percentage,
+                 'stripes_maxthickness': max_thickness,
+                 'stripes_intensity': intensity,
+                 'stripes_type': kind,
+                 'stripes_variability': variability}
     # normalize data in range [0, 1]
     ProjData3D = rescale(ProjData3D, a=0, b=1)
     # add stripes
     projData3D_stripes = _Artifacts_(ProjData3D, **_stripes_)
     # stripes add a bit of extra intensity (i.e. > 1) so must be clipped back to range [0, 1]
     projData3D_stripes = np.clip(np.abs(projData3D_stripes), 0, 1)
+
+    if visual:
+        titles = ["Raw Sinogram", "Sinogram with Stripes"]
+        for i, img in enumerate([ProjData3D, projData3D_stripes]):
+            plt.subplot(1, 2, i+1)
+            plt.imshow(img, cmap='gray')
+            plt.axis('off')
+            plt.title(titles[i])
+        plt.show()
 
     if output_path:
         if sampleNo is None:

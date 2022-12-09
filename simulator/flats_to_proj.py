@@ -37,7 +37,11 @@ def add_flats_proj(projData3D_clean, flatfield_poisson, flats_combined3D, blurre
             if j == 2:
                 # adding an exponential response offset for certain detectors
                 proj_exp += exponential_response[i]*blurred_speckles_map[:,:,j]*detectors_miscallibration*source_intensity
-                
+
+        # Potential problem: in the below function, tomophantom offers no way of changing the seed
+        # It is either always fixed at 1, or completely random.
+        # The network could overfit on this particular distribution of noise (if fixed)
+        # Or, the network may struggle to translate between different distributions in inputs and targets (if random)
         projection_poisson = noise(proj_exp, source_intensity, noisetype='Poisson')
 
         # apply jitter to projections

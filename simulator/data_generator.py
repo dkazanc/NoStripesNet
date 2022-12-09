@@ -47,10 +47,10 @@ def get_args():
 
 
 if __name__ == '__main__':
-    if os.path.basename(os.getcwd()) != 'run_scripts':
-        raise RuntimeError(f"Current Working Directory should be '.../NoStripesNet/run_scripts'. Instead got '{os.getcwd()}'.\n"
-                           f"If CWD is not 'NoStripesNet/run_scripts', file and directory creation will be incorrect.")
-
+    parent_dir = os.path.basename(os.path.abspath(os.pardir))
+    if parent_dir != 'NoStripesNet':
+        raise RuntimeError(f"Parent Directory should be '.../NoStripesNet/'. Instead got '{parent_dir}'.\n"
+                           f"If Parent Directory is not 'NoStripesNet/', file and directory creation will be incorrect.")
     args = get_args()
     root = args.root
     if root is None:
@@ -65,15 +65,20 @@ if __name__ == '__main__':
     verbose = args.verbose
     start = args.start
     total_samples = start + samples
-    if args.simple:
-        simulate_func = simulateStripes
-    else:
-        simulate_func = simulateFlats
 
     for sampleNo in range(start, total_samples):
         if verbose:
             print(f"Generating sample [{str(sampleNo).zfill(4)} / {str(total_samples-1).zfill(4)}]")
         samplePath, cleanPath = makeDirectories(root, sampleNo, shifts)
-        sample_clean = generateSample(size, objects, output_path=cleanPath, sampleNo=sampleNo, verbose=verbose)
-        sample_shifts = simulate_func(sample_clean, size, I0=I0, flatsnum=flatsnum, shifted_positions_no=shifts,
+        if args.simple:
+            sample_clean = generateSample(size, objects, output_path=cleanPath, sampleNo=sampleNo, verbose=verbose)
+            # TO-DO: Turn all the parameters below into CLI arguments
+            sample_shifts = simulateStripes(sample_clean, size, percentage=1.2, max_thickness=3.0, intensity=0.25,
+                                            kind='mix', variability=0, output_path=samplePath, sampleNo=sampleNo,
+                                            verbose=verbose)
+        else:
+            # don't save 'clean' sample after it's generated
+            # instead save 'clean' sample after flat noise has been added
+            sample_clean = generateSample(size, objects, sampleNo=sampleNo, verbose=verbose)
+            sample_shifts = simulateFlats(sample_clean, size, I0=I0, flatsnum=flatsnum, shifted_positions_no=shifts,
                                       shift_step=shift_step, output_path=samplePath, sampleNo=sampleNo, verbose=verbose)
