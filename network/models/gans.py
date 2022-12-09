@@ -83,14 +83,14 @@ class BaseGAN:
         fakeAB = torch.cat((self.realA, self.fakeB), dim=1)
         outFake = self.disc(fakeAB.detach())
         labels = torch.zeros_like(outFake)
-        self.D_x = torch.sigmoid(outFake).mean().item()
+        self.D_G_x1 = torch.sigmoid(outFake).mean().item()
         self.lossD_fake = self.lossGAN(outFake, labels)
 
         # Step 2 - calculate discriminator loss on real inputs
         realAB = torch.cat((self.realA, self.realB), dim=1)
         outReal = self.disc(realAB)
         labels = torch.ones_like(outReal)
-        self.D_G_x1 = torch.sigmoid(outReal).mean().item()
+        self.D_x = torch.sigmoid(outReal).mean().item()
         self.lossD_real = self.lossGAN(outReal, labels)
 
         # Step 3 - Combine losses and call backwards pass
