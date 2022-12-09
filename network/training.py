@@ -69,27 +69,28 @@ def getTrainingData(dataset, data):
         raise ValueError(f"Dataset '{dataset}' not recognised.")
 
 
-def getVisualizer(model, dataset, size):
+def getVisualizer(model, dataset, size, block=True):
     if type(dataset) == BaseDataset:
-        return BaseGANVisualizer(model, dataset, size)
+        return BaseGANVisualizer(model, dataset, size, block)
     elif type(dataset) == PairedWindowDataset:
-        return PairedWindowGANVisualizer(model, dataset, size)
+        return PairedWindowGANVisualizer(model, dataset, size, block)
     elif type(dataset) == PairedFullDataset:
-        return BaseGANVisualizer(model, dataset, size)
+        return BaseGANVisualizer(model, dataset, size, block)
     elif type(dataset) == MaskedDataset:
-        return MaskedVisualizer(model, dataset, size)
+        return MaskedVisualizer(model, dataset, size, block)
     else:
         raise ValueError(f"Dataset '{dataset}' not recognised.")
 
 
-def train(model, dataloader, epochs, save_every_epoch=False, save_name=None, save_dir=None, start_epoch=0, verbose=True):
+def train(model, dataloader, epochs, save_every_epoch=False, save_name=None, save_dir=None, start_epoch=0, verbose=True,
+          force=False):
     if isinstance(dataloader.dataset, Subset):
         dataset = dataloader.dataset.dataset
     else:
         dataset = dataloader.dataset
     epochs += start_epoch
     num_batches = len(dataloader)
-    vis = getVisualizer(model, dataset, dataset.size)
+    vis = getVisualizer(model, dataset, dataset.size, block=not force)
     print(f"Training has begun. Epochs: {epochs}, Batches: {num_batches}, Steps/batch: {dataloader.batch_size}")
     for epoch in range(start_epoch, epochs):
         print(f"Epoch [{epoch + 1}/{epochs}]: Training model...")
@@ -145,7 +146,7 @@ def train(model, dataloader, epochs, save_every_epoch=False, save_name=None, sav
     vis.plot_real_vs_fake_recon()
     vis.plot_disc_predictions()
     # Save models if user desires and save_every_epoch is False
-    if not save_every_epoch and input("Save model? (y/[n]): ") == 'y':
+    if not save_every_epoch and (force or input("Save model? (y/[n]): ") == 'y'):
         saveModel(model, epochs, save_dir, save_name)
         print(f"Training finished: Model '{save_name}_{epochs}' saved to '{save_dir}'")
     else:
@@ -183,6 +184,9 @@ def get_args():
                         help="Train/Validate/Test split, entered as a ratio")
     parser.add_argument("--subset", type=int, default=None,
                         help="Option to use a subset of the full dataset")
+    parser.add_argument("--force", action="store_true",
+                        help="When given, the model will not wait for any plots to close, will save the loss graph,"
+                             " and will skip any user inputs (pass 'y' to all)")
     parser.add_argument("--save-every-epoch", action="store_true", help="Save model every epoch")
     parser.add_argument('-v', "--verbose", action="store_true", help="Print some extra information when running")
     return parser.parse_args()
@@ -207,6 +211,7 @@ if __name__ == '__main__':
     sbst_size = args.subset
 
     save_every_epoch = args.save_every_epoch
+    force = args.force
     verbose = args.verbose
 
     # mean: 0.1780845671892166, std: 0.02912825345993042
@@ -253,4 +258,4 @@ if __name__ == '__main__':
         dataset = RandomSubset(dataset, sbst_size)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
     train(model, dataloader, epochs, save_every_epoch=save_every_epoch, save_dir=model_save_dir, save_name=args.model,
-          start_epoch=start_epoch, verbose=verbose)
+          start_epoch=start_epoch, verbose=verbose, force=force)

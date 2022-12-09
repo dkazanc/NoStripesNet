@@ -37,12 +37,13 @@ def batch_reconstruct(batch, size, device='cpu'):
 
 
 class BaseGANVisualizer:
-    def __init__(self, model, dataset, size):
+    def __init__(self, model, dataset, size, block=True):
         self.model = model
         self.gen = self.model.gen
         self.disc = self.model.disc
         self.dataset = dataset
         self.size = size
+        self.block = block
 
     def plot_losses(self):
         # Plot losses
@@ -63,7 +64,10 @@ class BaseGANVisualizer:
         lines = l1 + l2
         labels = [l.get_label() for l in lines]
         ax1.legend(lines, labels, loc=0)
-        plt.show()
+        if not self.block:
+            savename = f"../images/{self.model.__class__.__name__}_{len(self.model.lossD_values)}_losses.png"
+            plt.savefig(savename)
+        plt.show(block=self.block)
 
     def plot_one(self):
         item = np.random.randint(0, self.model.realA.shape[0])
@@ -79,7 +83,7 @@ class BaseGANVisualizer:
             if i < len(titles):
                 plt.title(titles[i])
             plt.axis('off')
-        plt.show()
+        plt.show(block=self.block)
 
     def plot_real_vs_fake_batch(self):
         """Function to plot a batch of real inputs, target outputs and generated outputs.
@@ -103,7 +107,7 @@ class BaseGANVisualizer:
         plt.title("Generated Outputs")
         plt.imshow(np.transpose(utils.make_grid(self.model.fakeB.detach(), padding=5, normalize=True, nrow=4).cpu(),
                                 (1, 2, 0)), cmap='gray')
-        plt.show()
+        plt.show(block=self.block)
 
     def plot_real_vs_fake_recon(self):
         """Function to plot a batch of *reconstructed* real inputs, target outputs and generated outputs.
@@ -129,7 +133,7 @@ class BaseGANVisualizer:
         plt.title("Generated")
         plt.imshow(np.transpose(utils.make_grid(fake_recon, normalize=True, nrow=4, scale_each=True).cpu(), (1, 2, 0)),
                    cmap='gray')
-        plt.show()
+        plt.show(block=self.block)
 
     def plot_disc_predictions(self):
         """Function to plot a series of real and fake images, with the label predicted by the discriminator"""
@@ -144,7 +148,7 @@ class BaseGANVisualizer:
             plt.axis('off')
             pred = torch.sigmoid(disc_outputs[i])
             plt.title(f"Actual: {'Real' if i < 5 else 'Fake'}\nPred: {'Real' if pred >= 0.5 else 'Fake'}")
-        plt.show()
+        plt.show(block=self.block)
 
 
 class PairedWindowGANVisualizer(BaseGANVisualizer):
@@ -180,7 +184,7 @@ class PairedWindowGANVisualizer(BaseGANVisualizer):
             if i < len(titles):
                 plt.title(titles[i])
             plt.axis('off')
-        plt.show()
+        plt.show(block=self.block)
 
 
 class MaskedVisualizer(BaseGANVisualizer):
@@ -202,7 +206,7 @@ class MaskedVisualizer(BaseGANVisualizer):
             if i < len(titles):
                 plt.title(titles[i])
             plt.axis('off')
-        plt.show()
+        plt.show(block=self.block)
 
 
 class MetricVisualizer:
