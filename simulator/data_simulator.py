@@ -133,7 +133,7 @@ def simulateFlats(ProjData3D, N_size, I0=40000, flatsnum=20, shifted_positions_n
                                       detectors_miscallibration=0.0,
                                       jitter_projections=0.0)
     projData3D_clean = normaliser(projData3D_clean, flats_combined3D, darks=None, log='true', method='mean')
-    projData3D_clean *= intens_max_clean
+    projData3D_clean = rescale(projData3D_clean, b=intens_max_clean)
     # Save "clean" projection; i.e. with flat field noise but no stripes
     if output_path:
         if sampleNo is None:
@@ -159,20 +159,20 @@ def simulateFlats(ProjData3D, N_size, I0=40000, flatsnum=20, shifted_positions_n
                                         blurred_speckles_map,
                                         source_intensity=I0,
                                         variations_number=3,
-                                        detectors_miscallibration=0.35,
+                                        detectors_miscallibration=0.07,
                                         jitter_projections=0.0)
 
 
         if verbose:
             print("Normalise projections with flats")
         projData3D_norm[:, :, :, i] = normaliser(projData3D_raw, flats_combined3D, darks=None, log='true', method='mean')
-        projData3D_norm[:, :, :, i] *= intens_max_clean
+        projData3D_norm[:, :, :, i] = rescale(projData3D_norm[:, :, :, i], b=intens_max_clean)
         # note that I'm saving the result in 4D data array for demonstration purposes ONLY
 
         if visual:
-            images = [flats_unshifted, flats_no_noise, ProjData3D[:, 0, :], projData3D_raw[:, 0, :], projData3D_norm[:, 0, :]]
+            images = [flats_unshifted, flats_no_noise, ProjData3D[:, 0, :], projData3D_clean[:, 0, :], projData3D_norm[:, 0, :]]
             titles = ['2D flat field unshifted', f'2D flat field shifted by {off_center_index - shift_step}', 'Input',
-                      'Before Normalization', 'After Normalization']
+                      'With Noise', 'With Stripes']
             idx = i * len(images)
             for j in range(len(images)):
                 plt.subplot(shifted_positions_no, 5, idx + j+1)
