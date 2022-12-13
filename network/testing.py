@@ -168,7 +168,7 @@ if __name__ == '__main__':
 
     transform = transforms.Compose([
         transforms.ToTensor(),
-        transforms.Normalize(0.5, 0.5)
+        Rescale(a=-1, b=1, imin=0, imax=1)
     ])
 
     # Use GPU if available

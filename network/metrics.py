@@ -5,8 +5,33 @@ import torch
 import torch.nn as nn
 from scipy.ndimage import median_filter, uniform_filter1d, binary_dilation
 from skimage.metrics import structural_similarity as ssim, peak_signal_noise_ratio
-from tomopy.prep.stripe import _detect_stripe, remove_large_stripe, _rs_large, _create_matindex
+from tomopy.prep.stripe import _detect_stripe
 from larix.methods.misc import STRIPES_DETECT, STRIPES_MERGE
+
+# not a good place for this but don't know where else to put it
+class Rescale(object):
+    """Rescale the image in a sample to a given range."""
+
+    def __init__(self, a=0, b=1, imin=None, imax=None):
+        self.a = a
+        self.b = b
+        self.imin = imin
+        self.imax = imax
+
+    def __call__(self, data):
+        if self.imin is None:
+            tmp_min = data.min()
+        else:
+            tmp_min = self.imin
+        if self.imax is None:
+            tmp_max = data.max()
+        else:
+            tmp_max = self.imax
+        # if imin == imax, then the data is a constant value, and so normalising will have no effect
+        # this also avoids a Divide By Zero error
+        if self.imin == self.imax:
+            return data
+        return self.a + ((data - tmp_min) * (self.b - self.a)) / (tmp_max - tmp_min)
 
 
 def normalise(data):

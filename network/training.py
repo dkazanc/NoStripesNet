@@ -15,6 +15,7 @@ from models.discriminators import *
 from models.generators import *
 from visualizers import BaseGANVisualizer, PairedWindowGANVisualizer, MaskedVisualizer
 from datasets import PairedWindowDataset, BaseDataset, PairedFullDataset, MaskedDataset, RandomSubset
+from metrics import Rescale
 
 
 # In the future this should be in NoStripesNet/simulator/data_io.py
@@ -217,7 +218,7 @@ if __name__ == '__main__':
     # mean: 0.1780845671892166, std: 0.02912825345993042
     transform = transforms.Compose([
         transforms.ToTensor(),
-        transforms.Normalize(0.5, 0.5)
+        Rescale(a=-1, b=1, imin=0, imax=1)
     ])
 
     # Use GPU if available

@@ -79,7 +79,7 @@ class BaseGANVisualizer:
         titles = ['Target', 'Input', 'Output']
         for i, img in enumerate(images):
             plt.subplot(2, 3, i + 1)
-            plt.imshow(img.squeeze(), cmap='gray')
+            plt.imshow(img.squeeze(), cmap='gray', vmin=-1, vmax=1)
             if i < len(titles):
                 plt.title(titles[i])
             plt.axis('off')
@@ -203,6 +203,8 @@ class MaskedVisualizer(BaseGANVisualizer):
         for i, img in enumerate(images):
             plt.subplot(2, 5, i+1)
             plt.imshow(img.squeeze(), cmap='gray')
+            if i in [0, 1, 3, 4]:
+                plt.clim(-1, 1)
             if i < len(titles):
                 plt.title(titles[i])
             plt.axis('off')
