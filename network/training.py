@@ -4,6 +4,7 @@ import argparse
 import warnings
 import numpy as np
 import matplotlib.pyplot as plt
+from datetime import datetime
 
 import torch
 from torch.utils.data import DataLoader, Subset
@@ -92,6 +93,7 @@ def train(model, dataloader, epochs, save_every_epoch=False, save_name=None, sav
     epochs += start_epoch
     num_batches = len(dataloader)
     vis = getVisualizer(model, dataset, dataset.size, block=not force)
+    start_time = datetime.now()
     print(f"Training has begun. Epochs: {epochs}, Batches: {num_batches}, Steps/batch: {dataloader.batch_size}")
     for epoch in range(start_epoch, epochs):
         print(f"Epoch [{epoch + 1}/{epochs}]: Training model...")
@@ -142,6 +144,8 @@ def train(model, dataloader, epochs, save_every_epoch=False, save_name=None, sav
             if verbose:
                 print(f"Epoch [{epoch+1}/{epochs}]: Model not saved.")
     # Once training has finished, plot some data and save model state
+    finish_time = datetime.now()
+    print(f"Total Training time: {finish_time - start_time}")
     vis.plot_losses()
     vis.plot_real_vs_fake_batch()
     vis.plot_real_vs_fake_recon()
@@ -172,7 +176,7 @@ def get_args():
                         help="Learning rate of the network")
     parser.add_argument('-b', "--betas", type=float, default=[0.5, 0.999], nargs=2,
                         help="Values of the beta parameters used in the Adam optimizer")
-    parser.add_argument('-B', "--batch-size", type=int, default=32,
+    parser.add_argument('-B', "--batch-size", type=int, default=16,
                         help="Batch size used for loading data and for minibatches for Adam optimizer")
     parser.add_argument('--lambda', type=int, default=100, dest='lambdal1',
                         help="Parameter by which L1 loss in the generator is multiplied")

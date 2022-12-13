@@ -2,6 +2,7 @@ import os
 import argparse
 import numpy as np
 import matplotlib.pyplot as plt
+from datetime import datetime
 
 import torch
 from torch.utils.data import DataLoader, Subset
@@ -51,6 +52,7 @@ def test(model, dataloader, metrics, display_each_batch=False, verbose=True, vis
     vis = getVisualizer(model, dataset, dataset.size)
     overall_mean_scores = {metric.__name__: [] for metric in metrics}
     overall_accuracies = {'total': 0, 'fake': 0, 'real': 0}
+    start_time = datetime.now()
     print(f"Testing has begun. Batches: {len(dataloader)}, Steps/batch: {dataloader.batch_size}")
     for i, data in enumerate(dataloader):
         if verbose and not visual_only:
@@ -70,7 +72,7 @@ def test(model, dataloader, metrics, display_each_batch=False, verbose=True, vis
             break
 
         # Calculate model evaluation metrics
-        metric_scores = {metric.__name__: batch_metric(metric, model.realB, model.fakeB) for metric in metrics}
+        metric_scores = apply_metrics(model.realB, model.fakeB, metrics)
         [overall_mean_scores[key].append(metric_scores[key]) for key in metric_scores]
         # Calculate discriminator accuracies
         # fake
@@ -103,6 +105,8 @@ def test(model, dataloader, metrics, display_each_batch=False, verbose=True, vis
         print(f"\tTotal : {overall_accuracies['total'] / len(dataloader)}"
               f"\n\tFake  : {overall_accuracies['fake'] / len(dataloader)}" 
               f"\n\tReal  : {overall_accuracies['real'] / len(dataloader)}")
+    finish_time = datetime.now()
+    print(f"Total test time: {finish_time - start_time}")
     vis.plot_one()
     if verbose:
         print("Plotting last batch...")
@@ -126,7 +130,7 @@ def get_args():
                         help="Number of vertical shifts applied to each sample in data generation")
     parser.add_argument('-w', "--window-width", type=int, default=25,
                         help="Width of windows that sinograms are split into")
-    parser.add_argument('-B', "--batch-size", type=int, default=32,
+    parser.add_argument('-B', "--batch-size", type=int, default=16,
                         help="Batch size used for loading data  ")
     parser.add_argument('-M', "--metrics", type=str, default='all', nargs='*',
                         help="Metrics used to evaluate model.")
