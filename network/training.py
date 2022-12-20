@@ -150,7 +150,6 @@ def train(model, dataloader, epochs, save_every_epoch=False, save_name=None, sav
     vis.plot_one()
     vis.plot_real_vs_fake_batch()
     vis.plot_real_vs_fake_recon()
-    vis.plot_disc_predictions()
     # Save models if user desires and save_every_epoch is False
     if not save_every_epoch and (force or input("Save model? (y/[n]): ") == 'y'):
         saveModel(model, epochs, save_dir, save_name)
@@ -188,6 +187,7 @@ def get_args():
                              "load a pre-trained model from disk.")
     parser.add_argument("--tvt", type=int, default=[3, 1, 1], nargs=3,
                         help="Train/Validate/Test split, entered as a ratio")
+    parser.add_argument("--lsgan", action="store_true", help="Train an LSGAN, rather than a normal GAN.")
     parser.add_argument("--subset", type=int, default=None,
                         help="Option to use a subset of the full dataset")
     parser.add_argument("--force", action="store_true",
@@ -216,6 +216,7 @@ if __name__ == '__main__':
     tvt = args.tvt
     sbst_size = args.subset
 
+    lsgan = args.lsgan
     save_every_epoch = args.save_every_epoch
     force = args.force
     verbose = args.verbose
@@ -239,7 +240,7 @@ if __name__ == '__main__':
         dataset = BaseDataset(root=dataroot, mode='train', tvt=tvt, size=size, shifts=num_shifts,
                               transform=transform)
         model = BaseGAN(gen, disc, mode='train', learning_rate=learning_rate, betas=betas, lambdaL1=lambdal1,
-                        device=device)
+                        lsgan=lsgan, device=device)
     elif args.model == 'window':
         # Create dataset
         dataset = PairedWindowDataset(root=dataroot, mode='train', tvt=tvt, size=size, shifts=num_shifts,
@@ -248,19 +249,19 @@ if __name__ == '__main__':
         disc = WindowDiscriminator()
         gen = WindowUNet()
         model = WindowGAN(windowWidth, gen, disc, mode='train', learning_rate=learning_rate, betas=betas,
-                          lambdaL1=lambdal1, device=device)
+                          lambdaL1=lambdal1, lsgan=lsgan, device=device)
     elif args.model == 'full':
         # Create dataset
         dataset = PairedFullDataset(root=dataroot, mode='train', tvt=tvt, size=size, shifts=num_shifts,
                                     windowWidth=windowWidth, transform=transform)
         model = BaseGAN(gen, disc, mode='train', learning_rate=learning_rate, betas=betas, lambdaL1=lambdal1,
-                        device=device)
+                        lsgan=lsgan, device=device)
     elif args.model == 'mask' or args.model == 'simple':
         # Create dataset
         dataset = MaskedDataset(root=dataroot, mode='train', tvt=tvt, size=size, shifts=num_shifts, transform=transform,
                                 simple=args.model=='simple')
         model = MaskedGAN(gen, disc, mode='train', learning_rate=learning_rate, betas=betas, lambdaL1=lambdal1,
-                          device=device)
+                          lsgan=lsgan, device=device)
     else:
         raise ValueError(f"Argument '--model' should be one of ['window', 'base', 'full', 'mask', 'simple]. "
                          f"Instead got '{args.model}'")

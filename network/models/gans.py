@@ -24,20 +24,21 @@ def init_weights(m):
 
 class BaseGAN:
     def __init__(self, gen, disc=None, mode='train', learning_rate=0.01, betas=(0.5, 0.999), lambdaL1=100.0,
-                 device=None):
+                 lsgan=False, device=None):
         if device is None:
             self.device = torch.device('cpu')
         else:
             self.device = device
         self.gen = gen.to(self.device)
         self.disc = disc.to(self.device)
+        self.lsgan = lsgan
         self.setMode(mode)
         self.lossD_values = []
         self.lossG_values = []
 
         # if training, create discriminator and set up loss & optimizer functions
         if self.mode == 'train':
-            self.lossGAN = nn.BCEWithLogitsLoss().to(self.device)
+            self.lossGAN = (nn.MSELoss() if self.lsgan else nn.BCEWithLogitsLoss()).to(self.device)
             self.lossL1 = nn.L1Loss()
             self.lambdaL1 = lambdaL1
             self.optimizerG = optim.Adam(self.gen.parameters(), lr=learning_rate, betas=betas)
@@ -88,14 +89,14 @@ class BaseGAN:
         fakeAB = torch.cat((self.realA, self.fakeB), dim=1)
         outFake = self.disc(fakeAB.detach())
         labels = torch.zeros_like(outFake)
-        self.D_G_x1 = torch.sigmoid(outFake).mean().item()
+        self.D_G_x1 = self.getDiscOutput(outFake)
         self.lossD_fake = self.lossGAN(outFake, labels)
 
         # Step 2 - calculate discriminator loss on real inputs
         realAB = torch.cat((self.realA, self.realB), dim=1)
         outReal = self.disc(realAB)
         labels = torch.ones_like(outReal)
-        self.D_x = torch.sigmoid(outReal).mean().item()
+        self.D_x = self.getDiscOutput(outReal)
         self.lossD_real = self.lossGAN(outReal, labels)
 
         # Step 3 - Combine losses and call backwards pass
@@ -107,7 +108,7 @@ class BaseGAN:
         # Step 1 - Caluclate GAN loss for fake images, i.e. disc incorrect predictions
         fakeAB = torch.cat((self.realA, self.fakeB), dim=1)
         outFake = self.disc(fakeAB)
-        self.D_G_x2 = torch.sigmoid(outFake).mean().item()
+        self.D_G_x2 = self.getDiscOutput(outFake)
         labels = torch.ones_like(outFake)
         self.lossG_GAN = self.lossGAN(outFake, labels)
 
@@ -141,19 +142,23 @@ class BaseGAN:
             self.lossD_values.append(self.lossD.item())
             self.lossG_values.append(self.lossG.item())
 
-
     @staticmethod
     def set_requires_grad(network, grad):
         for param in network.parameters():
             param.requires_grad = grad
 
+    def getDiscOutput(self, raw_output):
+        if self.lsgan:
+            return raw_output.detach().mean().item()
+        else:
+            return torch.sigmoid(raw_output.detach()).mean().item()
 
 
 class WindowGAN(BaseGAN):
     def __init__(self, width, gen, disc=None, mode='train', learning_rate=0.01, betas=(0.5, 0.999), lambdaL1=100.0,
-                 device=None):
+                 lsgan=False, device=None):
         super().__init__(gen, disc, mode=mode, learning_rate=learning_rate, betas=betas, lambdaL1=lambdaL1,
-                         device=device)
+                         lsgan=lsgan, device=device)
         self.windowWidth = width
         self.realAs, self.realBs = [], []
 
@@ -194,9 +199,9 @@ class WindowGAN(BaseGAN):
 
 class MaskedGAN(BaseGAN):
     def __init__(self, gen, disc=None, mode='train', learning_rate=0.002, betas=(0.5, 0.999), lambdaL1=100.0,
-                 device=None):
+                 lsgan=False, device=None):
         super().__init__(gen, disc, mode=mode, learning_rate=learning_rate, betas=betas, lambdaL1=lambdaL1,
-                         device=device)
+                         lsgan=lsgan, device=device)
         self.lossL1 = self.masked_l1_loss
 
     def masked_l1_loss(self, inpt, target):
@@ -204,7 +209,6 @@ class MaskedGAN(BaseGAN):
         target_mask = target[self.mask]
         loss = nn.functional.l1_loss(inpt_mask, target_mask)
         return loss
-
 
     def preprocess(self, a, b):
         self.realA = a[:, 0].unsqueeze(dim=1).to(self.device)
@@ -224,14 +228,14 @@ class MaskedGAN(BaseGAN):
         fakeAB = torch.cat((self.mask, self.fakeB), dim=1)
         outFake = self.disc(fakeAB.detach())
         labels = torch.zeros_like(outFake)
-        self.D_G_x1 = torch.sigmoid(outFake).mean().item()
+        self.D_G_x1 = self.getDiscOutput(outFake)
         self.lossD_fake = self.lossGAN(outFake, labels)
 
         # Step 2 - calculate discriminator loss on real inputs
         realAB = torch.cat((self.mask, self.realB), dim=1)
         outReal = self.disc(realAB)
         labels = torch.ones_like(outReal)
-        self.D_x = torch.sigmoid(outReal).mean().item()
+        self.D_x = self.getDiscOutput(outReal)
         self.lossD_real = self.lossGAN(outReal, labels)
 
         # Step 3 - Combine losses and call backwards pass
@@ -243,7 +247,7 @@ class MaskedGAN(BaseGAN):
         # Step 1 - Caluclate GAN loss for fake images, i.e. disc incorrect predictions
         fakeAB = torch.cat((self.mask, self.fakeB), dim=1)
         outFake = self.disc(fakeAB)
-        self.D_G_x2 = torch.sigmoid(outFake).mean().item()
+        self.D_G_x2 = self.getDiscOutput(outFake)
         labels = torch.ones_like(outFake)
         self.lossG_GAN = self.lossGAN(outFake, labels)
 
