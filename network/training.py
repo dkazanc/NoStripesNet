@@ -147,6 +147,7 @@ def train(model, dataloader, epochs, save_every_epoch=False, save_name=None, sav
     finish_time = datetime.now()
     print(f"Total Training time: {finish_time - start_time}")
     vis.plot_losses()
+    vis.plot_one()
     vis.plot_real_vs_fake_batch()
     vis.plot_real_vs_fake_recon()
     vis.plot_disc_predictions()
@@ -178,7 +179,7 @@ def get_args():
                         help="Values of the beta parameters used in the Adam optimizer")
     parser.add_argument('-B', "--batch-size", type=int, default=16,
                         help="Batch size used for loading data and for minibatches for Adam optimizer")
-    parser.add_argument('--lambda', type=int, default=100, dest='lambdal1',
+    parser.add_argument('--lambda', type=float, default=100, dest='lambdal1',
                         help="Parameter by which L1 loss in the generator is multiplied")
     parser.add_argument('-d', "--save-dir", type=str, default=None,
                         help="Directory to save models to once training has finished.")

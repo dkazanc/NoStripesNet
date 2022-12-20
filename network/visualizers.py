@@ -79,7 +79,9 @@ class BaseGANVisualizer:
         titles = ['Target', 'Input', 'Output']
         for i, img in enumerate(images):
             plt.subplot(2, 3, i + 1)
-            plt.imshow(img.squeeze(), cmap='gray', vmin=-1, vmax=1)
+            plt.imshow(img.squeeze(), cmap='gray')
+            if i in [0, 1, 2]:
+                plt.clim(-1, 1)
             if i < len(titles):
                 plt.title(titles[i])
             plt.axis('off')
