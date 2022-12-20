@@ -10,7 +10,7 @@ epochs=1 # number of epochs
 lr=0.0002 # learning rate
 beta1=0.5 # beta 1 for adam optimizer
 beta2=0.999 # beta 2 for adam optimizer
-batchsize=32 # batch size for minibatches
+batchsize=16 # batch size for minibatches
 
 echo "Beginning training..."
 python ../network/training.py -r $root -m $model -N $size -s $shifts -w $width -e $epochs -l $lr -b $beta1 $beta2 -B $batchsize -d $savedir -v --force
