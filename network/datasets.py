@@ -4,13 +4,115 @@ import os
 import itertools
 import functools
 import random
+import yaml
 import numpy as np
 import torch
 from torch.utils.data import Dataset, Subset
 from scipy.ndimage import uniform_filter1d
 from simulator.data_io import loadTiff
 from metrics import *
+from httomo.data.hdf.loaders import standard_tomo
+from h5py import File
+from mpi4py import MPI
+import multiprocessing
+from tomopy.prep.normalize import normalize, minus_log
+from tomopy.recon.rotation import find_center_vo
+from tomopy.recon.algorithm import recon as recon_fn
+from tomopy.prep.alignment import scale
 
+######################
+###### REAL DATA #####
+######################
+
+class RealDataset(Dataset):
+    """Dataset to get sinograms from HDF5 files"""
+
+    def __init__(self, root, pipeline, transform=None):
+        self.root = root
+        self.tomo_params = pipeline[0]['httomo.data.hdf.loaders']['standard_tomo']
+        self.cor_params = pipeline[1]['tomopy.recon.rotation']['find_center_vo']
+        self.rec_params = pipeline[2]['tomopy.recon.algorithm']['recon']
+        self.transform = transform
+        # multi-processing stuff idk
+        self.comm = MPI.COMM_WORLD
+        if self.comm.size == 1:
+            self.ncore = multiprocessing.cpu_count()  # use all available CPU cores if not an MPI run
+        # get shape of dataset
+        with File(self.root, "r", driver="mpio", comm=self.comm) as file:
+            self.shape = file[self.tomo_params['data_path']].shape
+
+    def __len__(self):
+        return self.shape[1]
+
+    def __getitem__(self, item):
+        # load HDF5 file
+        data, *_ = self.loadHDF(self.getPreviewFromItem(item))
+        data = np.transpose(data, axes=(0, 2, 1))
+        # transform if necessary
+        if self.transform is not None:
+            data = self.transform(data)
+        return data
+
+    @staticmethod
+    def getPreviewFromItem(item):
+        return [{'start': None, 'stop': None}, {'start': item, 'stop': item+1}, {'start': None, 'stop': None}]
+
+    def loadHDF(self, preview):
+        # load raw data
+        data, flats, darks, angles, *_ = standard_tomo('tomo', self.root,
+                                                       self.tomo_params['data_path'],
+                                                       self.tomo_params['image_key_path'],
+                                                       self.tomo_params['dimension'],
+                                                       preview,
+                                                       self.tomo_params['pad'],
+                                                       self.comm)
+        # normalize with flats and darks
+        data = normalize(data, flats, darks, ncore=self.ncore, cutoff=10)
+        data[data == 0.0] = 1e-09
+        data = minus_log(data, ncore=self.ncore)
+        return data, angles
+
+    def reconstructItem(self, item):
+        if type(item) == int:
+            sinogram, angles = self.loadHDF(self.getPreviewFromItem(item))
+        elif type(item) == np.ndarray or type(item) == torch.Tensor:
+            sinogram = item
+            angles = np.linspace(0, np.pi, sinogram.shape[0])
+            if sinogram.ndim == 2:
+                sinogram = sinogram[:, None, :]
+        else:
+            raise TypeError(f"Type of item should be one of ['int', 'np.ndarray', 'torch.Tensor']. "
+                            f"Instead got '{type(item)}'")
+        # Find Centre of Rotation
+        rot_center = 0
+        mid_rank = int(round(self.comm.size / 2) + 0.1)
+        if self.comm.rank == mid_rank:
+            mid_slice = int(np.size(sinogram, 1) / 2)
+            rot_center = find_center_vo(sinogram,
+                                        mid_slice,
+                                        self.cor_params['smin'],
+                                        self.cor_params['smax'],
+                                        self.cor_params['srad'],
+                                        self.cor_params['step'],
+                                        self.cor_params['ratio'],
+                                        self.cor_params['drop'],
+                                        ncore=self.ncore)
+        rot_center = self.comm.bcast(rot_center, root=mid_rank)
+        # Reconstruct
+        reconstruction = recon_fn(sinogram,
+                                  angles,
+                                  rot_center,
+                                  self.rec_params['sinogram_order'],
+                                  self.rec_params['algorithm'],
+                                  ncore=self.ncore)
+        reconstruction = scale(reconstruction)[0]
+        return reconstruction.squeeze(), sinogram.squeeze()
+
+
+
+######################
+### SIMULATED DATA ###
+######################
 
 class BaseDataset(Dataset):
     """Dataset to get sinograms from directories (provided data was generated according to the scripts in ../simulators)
