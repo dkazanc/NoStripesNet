@@ -14,7 +14,7 @@ from metrics import *
 from h5py import File
 from mpi4py import MPI
 import multiprocessing
-from utils import loadHDF, getFlatsDarks, reconstruct
+from utils import loadHDF, getFlatsDarks, reconstruct, getMask_functional
 
 ######################
 ###### REAL DATA #####
@@ -71,7 +71,21 @@ class RealDataset(Dataset):
             print("Done.")
         # Reset self.file
         self.file = str(file_num) + '.nxs'
-        return shifts
+        return self.getCleanStripe(shifts)
+
+    @staticmethod
+    def getCleanStripe(shifts):
+        clean = shifts[0].copy()
+        stripe = shifts[0].copy()
+        masks = [getMask_functional(s) for s in shifts]
+        for col in range(stripe.shape[1]):
+            for i, mask in enumerate(masks):
+                vert_sum = np.sum(mask[:, col])
+                if vert_sum == 0:
+                    clean[:, col] = shifts[i][:, col]
+                else:
+                    stripe[:, col] = shifts[i][:, col]
+        return clean, stripe
 
     def setPreviewFromItem(self, item):
         self.tomo_params['preview'][1]['start'] = item

@@ -1,3 +1,6 @@
+import sys
+sys.path.append('..')
+from metrics import detect_stripe_larix, detect_stripe_mean, detect_stripe_vo
 import numpy as np
 import torch
 from tomopy import find_center_vo, scale, normalize, minus_log, recon as recon_fn
@@ -80,3 +83,30 @@ def loadHDF(file, tomo_params, flats=None, darks=None, comm=MPI.COMM_WORLD, ncor
     data[data == 0.0] = 1e-09
     data = minus_log(data, ncore=ncore)
     return data, angles
+
+
+def getMask_functional(sinogram, kernel_width=3, min_width=2, max_width=25, threshold=0.01, filter_size=10):
+    if isinstance(sinogram, torch.Tensor):
+        sino_np = sinogram.detach().numpy().squeeze()
+    else:
+        sino_np = sinogram
+    mask_vo = detect_stripe_vo(sino_np, filter_size=filter_size).astype(int)
+    mask_mean = detect_stripe_mean(sino_np, eta=threshold, kernel_width=kernel_width, min_width=min_width,
+                                   max_width=max_width).astype(int)
+    mask_larix = detect_stripe_larix(sino_np).astype(int)
+    mask_sum = mask_vo + mask_mean + mask_larix
+    mask_sum[mask_sum < 2] = 0
+
+    # if there is a 3 pixel gap or less between stripes, merge them
+    convolutions = np.lib.stride_tricks.sliding_window_view(mask_sum, (sinogram.shape[-2], kernel_width+2)).squeeze()
+    for i, conv in enumerate(convolutions):
+        if conv[0, 0] and conv[0, -1]:
+            mask_sum[..., i:i + kernel_width+2] = True
+
+    if isinstance(sinogram, torch.Tensor):
+        mask_sum = torch.tensor(mask_sum, dtype=torch.bool).unsqueeze(0)
+    elif isinstance(sinogram, np.ndarray):
+        mask_sum = mask_sum.astype(np.bool_)
+    else:
+        raise TypeError(f"Expected type {np.ndarray} or {torch.Tensor}. Instead got {type(sinogram)}")
+    return mask_sum
