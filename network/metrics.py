@@ -27,9 +27,9 @@ class Rescale(object):
             tmp_max = data.max()
         else:
             tmp_max = self.imax
-        # if imin == imax, then the data is a constant value, and so normalising will have no effect
+        # if min == max, then the data is a constant value, and so normalising will have no effect
         # this also avoids a Divide By Zero error
-        if self.imin == self.imax:
+        if tmp_min == tmp_max:
             return data
         return self.a + ((data - tmp_min) * (self.b - self.a)) / (tmp_max - tmp_min)
 
