@@ -98,7 +98,7 @@ def getMask_functional(sinogram, kernel_width=3, min_width=2, max_width=25, thre
     mask_sum[mask_sum < 2] = 0
 
     # if there is a 3 pixel gap or less between stripes, merge them
-    convolutions = np.lib.stride_tricks.sliding_window_view(mask_sum, (sinogram.shape[-2], kernel_width+2)).squeeze()
+    convolutions = np.lib.stride_tricks.sliding_window_view(mask_sum, (sino_np.shape[-2], kernel_width+2)).squeeze()
     for i, conv in enumerate(convolutions):
         if conv[0, 0] and conv[0, -1]:
             mask_sum[..., i:i + kernel_width+2] = True

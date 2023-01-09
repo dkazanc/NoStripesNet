@@ -63,7 +63,7 @@ class RealDataset(Dataset):
                            self.tomo_params, self.flats, self.darks, self.comm, self.ncore)[0]
             self.tomo_params['preview'][1]['start'] += self.shiftstep
             self.tomo_params['preview'][1]['stop'] += self.shiftstep
-            data = np.transpose(data, axes=(0, 2, 1))
+            data = np.squeeze(data)
             # transform if necessary
             if self.transform is not None:
                 data = self.transform(data)
