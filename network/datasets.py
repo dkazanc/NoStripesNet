@@ -1,20 +1,14 @@
-import sys
-sys.path.append('..')  # crap solution to an even worse problem
 import os
 import itertools
-import functools
 import random
-import yaml
 import numpy as np
 import torch
 from torch.utils.data import Dataset, Subset
-from scipy.ndimage import uniform_filter1d
-from simulator.data_io import loadTiff
-from metrics import *
 from h5py import File
 from mpi4py import MPI
 import multiprocessing
-from utils import loadHDF, getFlatsDarks, reconstruct, getMask_functional
+from utils import loadTiff, loadHDF, getFlatsDarks, getMask_functional
+from utils.stripe_detection import gradient_sum_tv
 
 ######################
 ###### REAL DATA #####
@@ -304,30 +298,13 @@ class MaskedDataset(BaseDataset):
         return mask
 
     def getMask(self, sinogram):
-        if isinstance(sinogram, torch.Tensor):
-            sino_np = sinogram.detach().numpy().squeeze()
-        else:
-            sino_np = sinogram
-        mask_vo = detect_stripe_vo(sino_np, filter_size=self.filter_size).astype(int)
-        mask_mean = detect_stripe_mean(sino_np, eta=self.eta, kernel_width=self.k, min_width=self.min_width,
-                                       max_width=self.max_width).astype(int)
-        mask_larix = detect_stripe_larix(sino_np).astype(int)
-        mask_sum = mask_vo + mask_mean + mask_larix
-        mask_sum[mask_sum < 2] = 0
-
-        # if there is a 3 pixel gap or less between stripes, merge them
-        convolutions = np.lib.stride_tricks.sliding_window_view(mask_sum, (sinogram.shape[-2], self.k+2)).squeeze()
-        for i, conv in enumerate(convolutions):
-            if conv[0, 0] and conv[0, -1]:
-                mask_sum[..., i:i + self.k+2] = True
-
-        if isinstance(sinogram, torch.Tensor):
-            mask_sum = torch.tensor(mask_sum, dtype=torch.bool).unsqueeze(0)
-        elif isinstance(sinogram, np.ndarray):
-            mask_sum = mask_sum.astype(np.bool_)
-        else:
-            raise TypeError(f"Expected type {np.ndarray} or {torch.Tensor}. Instead got {type(sinogram)}")
-        return mask_sum
+        mask = getMask_functional(sinogram,
+                                   kernel_width=self.k,
+                                   min_width=self.min_width,
+                                   max_width=self.max_width,
+                                   threshold=self.eta,
+                                   filter_size=self.filter_size)
+        return mask
 
 
 class RandomSubset(Subset):

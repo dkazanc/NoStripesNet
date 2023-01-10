@@ -12,5 +12,5 @@ flatsnum=20 # the number of the flat fields generated
 shift_step=5 # the shift step of a sample in pixels
 
 echo "Data generation has begun"
-python ../simulator/data_generator.py -S $samples -s $shifts -N $size -o $objects -I $I0 -f $flatsnum -p $shift_step -v
+python -m simulator.data_generator -S $samples -s $shifts -N $size -o $objects -I $I0 -f $flatsnum -p $shift_step -v
 echo "Data generation finished"

@@ -1,8 +1,6 @@
 import argparse
 import os
-
-from data_io import *
-from data_simulator import generateSample, simulateFlats, simulateStripes
+from .data_simulator import generateSample, simulateFlats, simulateStripes
 
 
 def makeDirectories(dataDir, sampleNo, shifts):
@@ -47,10 +45,10 @@ def get_args():
 
 
 if __name__ == '__main__':
-    parent_dir = os.path.basename(os.path.abspath(os.pardir))
-    if parent_dir != 'NoStripesNet':
-        raise RuntimeError(f"Parent Directory should be '.../NoStripesNet/'. Instead got '{parent_dir}'.\n"
-                           f"If Parent Directory is not 'NoStripesNet/', file and directory creation will be incorrect.")
+    # parent_dir = os.path.basename(os.path.abspath(os.pardir))
+    # if parent_dir != 'NoStripesNet':
+    #     raise RuntimeError(f"Parent Directory should be '.../NoStripesNet/'. Instead got '{parent_dir}'.\n"
+    #                        f"If Parent Directory is not 'NoStripesNet/', file and directory creation will be incorrect.")
     args = get_args()
     root = args.root
     if root is None:
@@ -65,7 +63,6 @@ if __name__ == '__main__':
     verbose = args.verbose
     start = args.start
     total_samples = start + samples
-
     for sampleNo in range(start, total_samples):
         if verbose:
             print(f"Generating sample [{str(sampleNo).zfill(4)} / {str(total_samples-1).zfill(4)}]")
@@ -73,7 +70,7 @@ if __name__ == '__main__':
         if args.simple:
             sample_clean = generateSample(size, objects, output_path=cleanPath, sampleNo=sampleNo, verbose=verbose)
             # TO-DO: Turn all the parameters below into CLI arguments
-            sample_shifts = simulateStripes(sample_clean, size, percentage=1.2, max_thickness=3.0, intensity=0.25,
+            sample_shifts = simulateStripes(sample_clean, percentage=1.2, max_thickness=3.0, intensity=0.25,
                                             kind='mix', variability=0, output_path=samplePath, sampleNo=sampleNo,
                                             verbose=verbose)
         else:

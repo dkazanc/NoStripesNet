@@ -1,13 +1,12 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
-
 import torch
 from torchvision import utils
 from tomobar.methodsDIR import RecToolsDIR
 
-from datasets import *
-from models.gans import *
+from .datasets import *
+from .models.gans import *
 
 
 def getRectools2D(size, device='cpu'):

@@ -1,6 +1,9 @@
 import numpy as np
 import pickle
 from PIL import Image
+from mpi4py import MPI
+from tomopy import normalize, minus_log
+from httomo.data.hdf.loaders import standard_tomo
 
 
 def rescale(data, a=0, b=1, imin=None, imax=None):
@@ -73,3 +76,27 @@ def load3DTiff(path, shape, dtype=np.uint16, normalise=True):
     if normalise:
         data = rescale(data, 0, 1)
     return data
+
+
+def loadHDF(file, tomo_params, flats=None, darks=None, comm=MPI.COMM_WORLD, ncore=None):
+    # load raw data
+    data, maybe_flats, maybe_darks, angles, *_ = standard_tomo(tomo_params['name'],
+                                                               file,
+                                                               tomo_params['data_path'],
+                                                               tomo_params['image_key_path'],
+                                                               tomo_params['dimension'],
+                                                               tomo_params['preview'],
+                                                               tomo_params['pad'],
+                                                               comm)
+    if flats is None and darks is None:
+        if maybe_flats.size == 0 and maybe_darks.size == 0:
+            raise RuntimeError("File contains no flat or dark field data, and no flat or dark fields were passed as "
+                               "parameters. Data cannot be normalized.")
+        else:
+            flats = maybe_flats
+            darks = maybe_darks
+    # normalize with flats and darks
+    data = normalize(data, flats, darks, ncore=ncore, cutoff=10)
+    data[data == 0.0] = 1e-09
+    data = minus_log(data, ncore=ncore)
+    return data, angles

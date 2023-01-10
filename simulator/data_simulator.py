@@ -14,9 +14,9 @@ from tomophantom import TomoP3D
 from tomophantom.randphant.generator import foam3D
 from tomophantom.supp.artifacts import _Artifacts_
 from tomobar.supp.suppTools import normaliser
-from flatgen_mod import synth_flats_mod
-from flats_to_proj import add_flats_proj
-from data_io import *
+from .flatgen_mod import synth_flats_mod
+from .flats_to_proj import add_flats_proj
+from utils.data_io import rescale, save3DTiff
 
 
 def generateSample(N_size, tot_objects, output_path=None, sampleNo=None, verbose=False, visual=False):
@@ -195,7 +195,7 @@ def simulateFlats(ProjData3D, N_size, I0=40000, flatsnum=20, shifted_positions_n
 
 
 def simulateStripes(ProjData3D, percentage=1.2, max_thickness=3.0, intensity=0.25, kind='mix', variability=0,
-                  output_path=None, sampleNo=None, verbose=False, visual=False):
+                    output_path=None, sampleNo=None, verbose=False, visual=False):
     if verbose:
         print("Simulating stripes on projection data...")
     _stripes_ = {'stripes_percentage': percentage,
