@@ -1,5 +1,6 @@
 # Code to load real-data from HDF files and then save them to disk as tiffs
 import os
+import math
 import yaml
 import csv
 import numpy as np
@@ -7,7 +8,7 @@ from mpi4py import MPI
 import multiprocessing
 from h5py import File
 from skimage.transform import resize
-from utils import plot_images, getFlatsDarks, reconstruct, getMask_functional, loadHDF, save3DTiff
+from utils import plot_images, getFlatsDarks, reconstruct, getMask_functional, loadHDF, save3DTiff, saveTiff
 import timeit
 
 
@@ -90,24 +91,30 @@ class RealDataset:
 
 
 def convertHDFtoTIFF(tiff_root, hdf_root, pipeline, sampleNo=0, **kwargs):
-    # Create Dataset
-    pipeline = yaml.safe_load(open(pipeline))
-    ds = RealDataset(hdf_root, pipeline, **kwargs)
-    clean3D = np.ndarray((len(ds), 402, 362))  # is hard-coding the size a good idea?
-    stripe3D = np.ndarray((len(ds), 402, 362))
-    # Load clean & stripe data into 3D array
-    print("\nLoading item 0")
-    for i, (clean, stripe) in enumerate(ds):
-        clean3D[i] = clean
-        stripe3D[i] = stripe
-        print(f"\nLoading item {i + 1}")
-    # Save 3D array as a series of tiff images
+    # Create pathnames
     sampleRoot = os.path.join(tiff_root, str(sampleNo).zfill(4))
-    # clean
     cleanPath = os.path.join(sampleRoot, 'clean')
+    stripePath = os.path.join(sampleRoot, 'shift00')
+    # Create Dataset
+    ds = RealDataset(hdf_root, pipeline, **kwargs)
+    no_slices = 243  # optimum n.o. slices to load determined through testing
+    inpt3D = np.ndarray((len(ds), 402, 362))
+    target3D = np.ndarray((len(ds), 402, 362))
+    for i in range(math.ceil(len(ds) / no_slices)):
+        # Load `no_slices` slices for each shift
+        shifts = ds[i*no_slices:(i+1)*no_slices]
+        # Calculate input & target for each slice
+        for slc in range(shifts[0].shape[0]):
+            current_slice = (i * no_slices) + slc
+            inpt3D[current_slice], target3D[current_slice] = ds.getCleanStripe([shift[slc] for shift in shifts])
+            # Save input and target to disk as TIF files
+            # (this is done pre-normalization, so is mainly just a backup incase the program crashes mid-execution)
+            filename = os.path.join(cleanPath, str(sampleNo).zfill(4) + '_clean_' + str(current_slice).zfill(4))
+            saveTiff(inpt3D[current_slice], filename)  # each image will only be normalized w.r.t itself
+            filename = os.path.join(stripePath, str(sampleNo).zfill(4) + '_shift00_' + str(current_slice).zfill(4))
+            saveTiff(target3D[current_slice], filename)
+    # Normalize 3D images & save to disk
     filename = os.path.join(cleanPath, str(sampleNo).zfill(4) + '_clean')
-    save3DTiff(clean3D, filename, normalise=True)
-    # stripe
-    stripePath = os.path.join(sampleRoot, 'shift' + str(0).zfill(2))
-    filename = os.path.join(stripePath, str(sampleNo).zfill(4) + '_shift' + str(0).zfill(2))
-    save3DTiff(stripe3D, filename, normalise=True)
+    save3DTiff(inpt3D, filename, normalise=True)  # each image will be normalized w.r.t. the whole 3D sample
+    filename = os.path.join(stripePath, str(sampleNo).zfill(4) + '_shift00')
+    save3DTiff(target3D, filename, normalise=True)
