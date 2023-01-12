@@ -48,7 +48,7 @@ class RealDataset:
         for s in range(0, self.num_shifts):
             # Get correct file name
             self.file = str(file_num + s) + '.nxs'
-            print(f"Loading shift {s} (file {self.file})...", end=' ', flush=True)
+            print(f"\tLoading shift {s} (file {self.file})...", end=' ', flush=True)
             # load HDF5 file
             data = loadHDF(os.path.join(self.root, self.file),
                            self.tomo_params, self.flats, self.darks, self.comm, self.ncore)[0]
@@ -82,8 +82,8 @@ class RealDataset:
 
     def setPreviewFromItem(self, item):
         if type(item) == slice:
-            self.tomo_params['preview'][1]['start'] = item.start
-            self.tomo_params['preview'][1]['stop'] = item.stop
+            self.tomo_params['preview'][1]['start'] = item.start if item.start < len(self) else len(self)
+            self.tomo_params['preview'][1]['stop'] = item.stop if item.stop < len(self) else len(self)
             self.tomo_params['preview'][1]['step'] = item.step
         else:
             self.tomo_params['preview'][1]['start'] = item
@@ -97,13 +97,25 @@ def convertHDFtoTIFF(tiff_root, hdf_root, pipeline, sampleNo=0, **kwargs):
     stripePath = os.path.join(sampleRoot, 'shift00')
     # Create Dataset
     ds = RealDataset(hdf_root, pipeline, **kwargs)
-    no_slices = 243  # optimum n.o. slices to load determined through testing
     inpt3D = np.ndarray((len(ds), 402, 362))
     target3D = np.ndarray((len(ds), 402, 362))
-    for i in range(math.ceil(len(ds) / no_slices)):
+    # Load data in chunks to speed it up
+    no_slices = 243  # optimum n.o. slices to load per chunk determined through testing
+    num_chunks = math.ceil(len(ds) / no_slices)
+    for i in range(num_chunks):
+        print(f"Loading Chunk {i+1}/{num_chunks}")
         # Load `no_slices` slices for each shift
         shifts = ds[i*no_slices:(i+1)*no_slices]
+        # If on last iteration, pad shifts[1:] with data from shifts[0] so that all shifts are the same length
+        # as otherwise (due the stepping between each shift) you get index-out-of-bounds errors
+        if i == num_chunks - 1:
+            new_shift = np.empty_like(shifts[0])
+            for s in range(1, len(shifts)):
+                new_shift[:shifts[s].shape[0]] = shifts[s]
+                new_shift[shifts[s].shape[0]:] = shifts[0][shifts[s].shape[0]:]
+                shifts[s] = new_shift
         # Calculate input & target for each slice
+        print("\tCreating input/target pairs for each slice & saving data...")
         for slc in range(shifts[0].shape[0]):
             current_slice = (i * no_slices) + slc
             inpt3D[current_slice], target3D[current_slice] = ds.getCleanStripe([shift[slc] for shift in shifts])
@@ -113,8 +125,10 @@ def convertHDFtoTIFF(tiff_root, hdf_root, pipeline, sampleNo=0, **kwargs):
             saveTiff(inpt3D[current_slice], filename)  # each image will only be normalized w.r.t itself
             filename = os.path.join(stripePath, str(sampleNo).zfill(4) + '_shift00_' + str(current_slice).zfill(4))
             saveTiff(target3D[current_slice], filename)
+        print(f"Chunk {i+1} saved to '{tiff_root}'")
     # Normalize 3D images & save to disk
     filename = os.path.join(cleanPath, str(sampleNo).zfill(4) + '_clean')
     save3DTiff(inpt3D, filename, normalise=True)  # each image will be normalized w.r.t. the whole 3D sample
     filename = os.path.join(stripePath, str(sampleNo).zfill(4) + '_shift00')
     save3DTiff(target3D, filename, normalise=True)
+    print(f"Full normalized dataset saved to '{tiff_root}'")
