@@ -7,7 +7,7 @@ from mpi4py import MPI
 from h5py import File
 
 
-def reconstruct(sinogram, cor_params, rec_params, comm=MPI.COMM_WORLD, ncore=None):
+def reconstruct(sinogram, comm=MPI.COMM_WORLD, ncore=None):
     if type(sinogram) == np.ndarray or type(sinogram) == torch.Tensor:
         sino_np = np.asarray(sinogram)
         if sino_np.ndim == 2:
@@ -25,20 +25,20 @@ def reconstruct(sinogram, cor_params, rec_params, comm=MPI.COMM_WORLD, ncore=Non
         mid_slice = int(np.size(sino_np, 1) / 2)
         rot_center = find_center_vo(sino_np,
                                     mid_slice,
-                                    cor_params['smin'],
-                                    cor_params['smax'],
-                                    cor_params['srad'],
-                                    cor_params['step'],
-                                    cor_params['ratio'],
-                                    cor_params['drop'],
+                                    smin=-50,
+                                    smax=50,
+                                    srad=6,
+                                    step=0.25,
+                                    ratio=0.5,
+                                    drop=20,
                                     ncore=ncore)
     rot_center = comm.bcast(rot_center, root=mid_rank)
     # Reconstruct
     reconstruction = recon_fn(sino_np,
                               angles,
                               rot_center,
-                              rec_params['sinogram_order'],
-                              rec_params['algorithm'],
+                              sinogram_order=False,
+                              algorithm='gridrec',
                               ncore=ncore)
     reconstruction = scale(reconstruction)[0]
     return reconstruction
