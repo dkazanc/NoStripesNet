@@ -10,86 +10,6 @@ import multiprocessing
 from utils import loadTiff, loadHDF, getFlatsDarks, getMask_functional
 from utils.stripe_detection import gradient_sum_tv
 
-######################
-###### REAL DATA #####
-######################
-
-class RealDataset(Dataset):
-    """Dataset to get sinograms from HDF5 files"""
-
-    def __init__(self, root, pipeline, flats_file=None, num_shifts=5, shiftstep=13, transform=None):
-        self.root = os.path.dirname(root)
-        self.file = os.path.basename(root)
-        self.tomo_params = pipeline[0]['httomo.data.hdf.loaders']['standard_tomo']
-        self.cor_params = pipeline[1]['tomopy.recon.rotation']['find_center_vo']
-        self.rec_params = pipeline[2]['tomopy.recon.algorithm']['recon']
-        self.transform = transform
-        self.num_shifts = num_shifts
-        self.shiftstep = shiftstep
-        # multi-processing stuff idk
-        self.comm = MPI.COMM_WORLD
-        if self.comm.size == 1:
-            self.ncore = multiprocessing.cpu_count()  # use all available CPU cores if not an MPI run
-        # get shape of dataset
-        with File(os.path.join(self.root, self.file), "r", driver="mpio", comm=self.comm) as file:
-            self.shape = file[self.tomo_params['data_path']].shape
-        if flats_file is None:
-            self.flats, self.darks = getFlatsDarks(os.path.join(self.root, self.file),
-                                                   self.tomo_params, self.shape, self.comm)
-        else:
-            self.flats, self.darks = getFlatsDarks(os.path.join(self.root, flats_file),
-                                                   self.tomo_params, self.shape, self.comm)
-
-    def __len__(self):
-        return self.shape[1]
-
-    def __getitem__(self, item):
-        """ Return a list of sinograms of the different vertical shifts of the sample."""
-        self.setPreviewFromItem(item)
-        file_num = int(self.file.split('.')[0])
-        shifts = []
-        for s in range(0, self.num_shifts):
-            # Get correct file name
-            self.file = str(file_num + s) + '.nxs'
-            print(f"Loading shift {s} (file {self.file})...", end=' ')
-            # load HDF5 file
-            data = loadHDF(os.path.join(self.root, self.file),
-                           self.tomo_params, self.flats, self.darks, self.comm, self.ncore)[0]
-            self.tomo_params['preview'][1]['start'] += self.shiftstep
-            self.tomo_params['preview'][1]['stop'] += self.shiftstep
-            data = np.squeeze(data)
-            # transform if necessary
-            if self.transform is not None:
-                data = self.transform(data)
-            shifts.append(data)
-            print("Done.")
-        # Reset self.file
-        self.file = str(file_num) + '.nxs'
-        return self.getCleanStripe(shifts)
-
-    @staticmethod
-    def getCleanStripe(shifts):
-        clean = shifts[0].copy()
-        stripe = shifts[0].copy()
-        masks = [getMask_functional(s) for s in shifts]
-        for col in range(stripe.shape[1]):
-            for i, mask in enumerate(masks):
-                vert_sum = np.sum(mask[:, col])
-                if vert_sum == 0:
-                    clean[:, col] = shifts[i][:, col]
-                else:
-                    stripe[:, col] = shifts[i][:, col]
-        return clean, stripe
-
-    def setPreviewFromItem(self, item):
-        self.tomo_params['preview'][1]['start'] = item
-        self.tomo_params['preview'][1]['stop'] = item + 1
-
-
-
-######################
-### SIMULATED DATA ###
-######################
 
 class BaseDataset(Dataset):
     """Dataset to get sinograms from directories (provided data was generated according to the scripts in ../simulators)
@@ -103,12 +23,19 @@ class BaseDataset(Dataset):
         # Create list of all datasets
         # and lists for train/test/validate datasets
         self.all_datasets = sorted(os.listdir(self.root))
-        num_train = int((tvt[0] / sum(tvt)) * len(self.all_datasets))
-        num_validate = int((tvt[1] / sum(tvt)) * len(self.all_datasets))
-        num_test = int((tvt[2] / sum(tvt)) * len(self.all_datasets))
-        self.train_datasets = self.all_datasets[:num_train]
-        self.validate_datasets = self.all_datasets[num_train:num_train + num_validate]
-        self.test_datasets = self.all_datasets[-num_test:]
+        # if there is only one dataset, set train/validate/test all to that one dataset
+        # this will cause overfitting, but we have no choice with only 1 dataset
+        if len(self.all_datasets) == 1:
+            self.train_datasets = self.all_datasets
+            self.validate_datasets = self.all_datasets
+            self.test_datasets = self.all_datasets
+        else:
+            num_train = int((tvt[0] / sum(tvt)) * len(self.all_datasets))
+            num_validate = int((tvt[1] / sum(tvt)) * len(self.all_datasets))
+            num_test = int((tvt[2] / sum(tvt)) * len(self.all_datasets))
+            self.train_datasets = self.all_datasets[:num_train]
+            self.validate_datasets = self.all_datasets[num_train:num_train + num_validate]
+            self.test_datasets = self.all_datasets[-num_test:]
         # Set current dataset to the dataset that corresponds to mode
         self.mode, self.datasets, self.filepaths = None, [], []
         self.setMode(mode)

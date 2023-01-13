@@ -142,10 +142,13 @@ def train(model, dataloader, epochs, save_every_epoch=False, save_name=None, sav
     # Once training has finished, plot some data and save model state
     finish_time = datetime.now()
     print(f"Total Training time: {finish_time - start_time}")
-    vis.plot_losses()
-    vis.plot_one()
-    vis.plot_real_vs_fake_batch()
-    vis.plot_real_vs_fake_recon()
+    try:
+        vis.plot_losses()
+        vis.plot_one()
+        vis.plot_real_vs_fake_batch()
+        vis.plot_real_vs_fake_recon()
+    except OSError as e:  # if plotting causes OoM, don't crash so model can still be saved
+        print(e)
     # Save models if user desires and save_every_epoch is False
     if not save_every_epoch and (force or input("Save model? (y/[n]): ") == 'y'):
         saveModel(model, epochs, save_dir, save_name)
