@@ -82,8 +82,8 @@ class RealDataset:
 
     def setPreviewFromItem(self, item):
         if type(item) == slice:
-            self.tomo_params['preview'][1]['start'] = item.start if item.start < len(self) else len(self)
-            self.tomo_params['preview'][1]['stop'] = item.stop if item.stop < len(self) else len(self)
+            self.tomo_params['preview'][1]['start'] = min(item.start, len(self))
+            self.tomo_params['preview'][1]['stop'] = min(item.stop, len(self))
             self.tomo_params['preview'][1]['step'] = item.step
         else:
             self.tomo_params['preview'][1]['start'] = item
@@ -106,11 +106,11 @@ def convertHDFtoTIFF(tiff_root, hdf_root, pipeline, sampleNo=0, **kwargs):
         print(f"Loading Chunk {i+1}/{num_chunks}")
         # Load `no_slices` slices for each shift
         shifts = ds[i*no_slices:(i+1)*no_slices]
-        # If on last iteration, pad shifts[1:] with data from shifts[0] so that all shifts are the same length
+        # Pad shifts[1:] with data from shifts[0] so that all shifts are the same length
         # as otherwise (due the stepping between each shift) you get index-out-of-bounds errors
-        if i == num_chunks - 1:
-            new_shift = np.empty_like(shifts[0])
-            for s in range(1, len(shifts)):
+        new_shift = np.empty_like(shifts[0])
+        for s in range(1, len(shifts)):
+            if shifts[s].shape != shifts[0].shape:
                 new_shift[:shifts[s].shape[0]] = shifts[s]
                 new_shift[shifts[s].shape[0]:] = shifts[0][shifts[s].shape[0]:]
                 shifts[s] = new_shift
