@@ -1,15 +1,12 @@
 # Code to load real-data from HDF files and then save them to disk as tiffs
 import os
 import math
-import yaml
-import csv
 import numpy as np
 from mpi4py import MPI
 import multiprocessing
 from h5py import File
 from skimage.transform import resize
-from utils import plot_images, getFlatsDarks, reconstruct, getMask_functional, loadHDF, save3DTiff, saveTiff
-import timeit
+from utils import getFlatsDarks, getMask_functional, loadHDF, save3DTiff, saveTiff
 
 
 class RealDataset:
@@ -59,7 +56,8 @@ class RealDataset:
             # swap axes
             data = np.swapaxes(data, 0, 1)
             # re-size data
-            data = resize(data, (data.shape[0], 402, 362), anti_aliasing=True)
+            if data.shape[0] != 0:  # if data is empty, don't resize (as will cause error)
+                data = resize(data, (data.shape[0], 402, 362), anti_aliasing=True)
             shifts.append(data)
             print("Done.")
         # Reset self.file
@@ -90,7 +88,7 @@ class RealDataset:
             self.tomo_params['preview'][1]['stop'] = item + 1
 
 
-def convertHDFtoTIFF(tiff_root, hdf_root, pipeline, sampleNo=0, **kwargs):
+def convertHDFtoTIFF(tiff_root, hdf_root, pipeline, no_slices=243, sampleNo=0, backup_save=True, **kwargs):
     # Create pathnames
     sampleRoot = os.path.join(tiff_root, str(sampleNo).zfill(4))
     cleanPath = os.path.join(sampleRoot, 'clean')
@@ -100,7 +98,6 @@ def convertHDFtoTIFF(tiff_root, hdf_root, pipeline, sampleNo=0, **kwargs):
     inpt3D = np.ndarray((len(ds), 402, 362))
     target3D = np.ndarray((len(ds), 402, 362))
     # Load data in chunks to speed it up
-    no_slices = 243  # optimum n.o. slices to load per chunk determined through testing
     num_chunks = math.ceil(len(ds) / no_slices)
     for i in range(num_chunks):
         print(f"Loading Chunk {i+1}/{num_chunks}")
@@ -121,12 +118,16 @@ def convertHDFtoTIFF(tiff_root, hdf_root, pipeline, sampleNo=0, **kwargs):
             inpt3D[current_slice], target3D[current_slice] = ds.getCleanStripe([shift[slc] for shift in shifts])
             # Save input and target to disk as TIF files
             # (this is done pre-normalization, so is mainly just a backup incase the program crashes mid-execution)
-            filename = os.path.join(cleanPath, str(sampleNo).zfill(4) + '_clean_' + str(current_slice).zfill(4))
-            saveTiff(inpt3D[current_slice], filename)  # each image will only be normalized w.r.t itself
-            filename = os.path.join(stripePath, str(sampleNo).zfill(4) + '_shift00_' + str(current_slice).zfill(4))
-            saveTiff(target3D[current_slice], filename)
+            if backup_save:
+                filename = os.path.join(cleanPath, str(sampleNo).zfill(4) + '_clean_' + str(current_slice).zfill(4))
+                saveTiff(inpt3D[current_slice], filename)  # each image will only be normalized w.r.t itself
+                filename = os.path.join(stripePath, str(sampleNo).zfill(4) + '_shift00_' + str(current_slice).zfill(4))
+                saveTiff(target3D[current_slice], filename)
         print(f"Chunk {i+1} saved to '{tiff_root}'")
     # Normalize 3D images & save to disk
+    # clip so norm isn't skewed by anomalies in very low & very high slices
+    inpt3D = np.clip(inpt3D, inpt3D[20:-20].min(), inpt3D[20:-20].max())
+    target3D = np.clip(target3D, target3D[20:-20].min(), target3D[20:-20].max())
     filename = os.path.join(cleanPath, str(sampleNo).zfill(4) + '_clean')
     save3DTiff(inpt3D, filename, normalise=True)  # each image will be normalized w.r.t. the whole 3D sample
     filename = os.path.join(stripePath, str(sampleNo).zfill(4) + '_shift00')

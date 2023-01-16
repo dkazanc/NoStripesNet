@@ -3,7 +3,8 @@ import pickle
 from PIL import Image
 from mpi4py import MPI
 from tomopy import normalize, minus_log
-from httomo.data.hdf.loaders import standard_tomo
+from httomo.data.hdf.loaders import standard_tomo, _parse_preview
+from httomo.data.hdf._utils.load import get_slice_list_from_preview
 
 
 def rescale(data, a=0, b=1, imin=None, imax=None):
@@ -80,14 +81,14 @@ def load3DTiff(path, shape, dtype=np.uint16, normalise=True):
 
 def loadHDF(file, tomo_params, flats=None, darks=None, comm=MPI.COMM_WORLD, ncore=None):
     # load raw data
-    data, maybe_flats, maybe_darks, angles, *_ = standard_tomo(tomo_params['name'],
-                                                               file,
-                                                               tomo_params['data_path'],
-                                                               tomo_params['image_key_path'],
-                                                               tomo_params['dimension'],
-                                                               tomo_params['preview'],
-                                                               tomo_params['pad'],
-                                                               comm)
+    data, maybe_flats, maybe_darks, angles, *shape = standard_tomo(tomo_params['name'],
+                                                                   file,
+                                                                   tomo_params['data_path'],
+                                                                   tomo_params['image_key_path'],
+                                                                   tomo_params['dimension'],
+                                                                   tomo_params['preview'],
+                                                                   tomo_params['pad'],
+                                                                   comm)
     if flats is None and darks is None:
         if maybe_flats.size == 0 and maybe_darks.size == 0:
             raise RuntimeError("File contains no flat or dark field data, and no flat or dark fields were passed as "
@@ -95,6 +96,10 @@ def loadHDF(file, tomo_params, flats=None, darks=None, comm=MPI.COMM_WORLD, ncor
         else:
             flats = maybe_flats
             darks = maybe_darks
+    else:  # make sure flats & darks are cropped correctly
+        slices = get_slice_list_from_preview(_parse_preview(tomo_params['preview'], shape, [0, shape[0]-1]))
+        flats = flats[tuple(slices)]
+        darks = darks[tuple(slices)]
     # normalize with flats and darks
     data = normalize(data, flats, darks, ncore=ncore, cutoff=10)
     data[data == 0.0] = 1e-09
