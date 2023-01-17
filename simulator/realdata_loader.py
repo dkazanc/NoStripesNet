@@ -90,9 +90,8 @@ class RealDataset:
 
 def convertHDFtoTIFF(tiff_root, hdf_root, pipeline, no_slices=243, sampleNo=0, backup_save=True, **kwargs):
     # Create pathnames
-    sampleRoot = os.path.join(tiff_root, str(sampleNo).zfill(4))
-    cleanPath = os.path.join(sampleRoot, 'clean')
-    stripePath = os.path.join(sampleRoot, 'shift00')
+    cleanPath = os.path.join(tiff_root, 'clean')
+    stripePath = os.path.join(tiff_root, 'shift00')
     # Create Dataset
     ds = RealDataset(hdf_root, pipeline, **kwargs)
     inpt3D = np.ndarray((len(ds), 402, 362))
