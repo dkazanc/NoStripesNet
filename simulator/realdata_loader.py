@@ -67,7 +67,9 @@ class RealDataset:
             # swap axes
             data = np.swapaxes(data, 0, 1)
             # re-size data
-            if data.shape[0] != 0:  # if data is empty, don't resize (as will cause error)
+            if data.size == 0:  # if data is empty, don't resize (as will cause error)
+                data = np.ndarray((0, 402, 362))
+            else:
                 data = resize(data, (data.shape[0], 402, 362), anti_aliasing=True)
             shifts.append(data)
         # Reset self.file
