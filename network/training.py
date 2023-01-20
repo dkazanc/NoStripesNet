@@ -159,7 +159,7 @@ def train(model, dataloader, epochs, save_every_epoch=False, save_name=None, sav
 
 def get_args():
     parser = argparse.ArgumentParser(description="Train neural network.")
-    parser.add_argument('-r', "--root", type=str, default='../data',
+    parser.add_argument('-r', "--root", type=str, default='./data',
                         help="Path to input data used in network")
     parser.add_argument('-m', "--model", type=str, default='base',
                         help="Type of model to train. Must be one of ['window', 'base', 'full', 'mask', 'simple].")

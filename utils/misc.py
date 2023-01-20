@@ -38,3 +38,17 @@ def plot_images(*images, titles=None, subplot_size=None, axis='off', clim=(None,
         if type(titles) == list and i < len(titles):
             plt.title(str(titles[i]))
     plt.show()
+
+
+def plot_data(*data, titles=None, subplot_size=None, lim=(None, None)):
+    if subplot_size is None:
+        subplot_size = (1, len(data))
+    for i, d in enumerate(data):
+        if d is None:
+            continue
+        plt.subplot(*subplot_size, i + 1)
+        plt.plot(d)
+        if type(titles) == list and i < len(titles):
+            plt.title(str(titles[i]))
+        plt.ylim(lim)
+    plt.show()

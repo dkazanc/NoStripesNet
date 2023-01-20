@@ -113,7 +113,7 @@ def test(model, dataloader, metrics, display_each_batch=False, verbose=True, vis
 
 def get_args():
     parser = argparse.ArgumentParser(description="Test neural network.")
-    parser.add_argument('-r', "--root", type=str, default='../data',
+    parser.add_argument('-r', "--root", type=str, default='./data',
                         help="Path to input data used in network")
     parser.add_argument('-m', "--model", type=str, default='base',
                         help="Type of model to test. Must be one of ['window', 'base', 'full', 'mask', 'simple].")
