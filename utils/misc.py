@@ -52,3 +52,19 @@ def plot_data(*data, titles=None, subplot_size=None, lim=(None, None)):
             plt.title(str(titles[i]))
         plt.ylim(lim)
     plt.show()
+
+
+def plot_mix(*mixed_data, subplot_size=None, titles=None, clim=(None, None), lim=(None, None)):
+    if subplot_size is None:
+        subplot_size = (1, len(mixed_data))
+    for i, data in enumerate(mixed_data):
+        plt.subplot(*subplot_size, i+1)
+        if type(titles) == list and i < len(titles):
+            plt.title(str(titles[i]))
+        if data.ndim == 2:
+            plt.imshow(data, cmap='gray')
+            plt.clim(*clim)
+        else:
+            plt.plot(data)
+            plt.ylim(lim)
+    plt.show()
