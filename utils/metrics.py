@@ -116,8 +116,10 @@ def psnr(data1, data2):
         return batch_metric(psnr, toNumpy(data1), toNumpy(data2))
     else:
         range = np.amax((data1, data2)) - np.amin((data1, data2))
-        return peak_signal_noise_ratio(data1, data2, data_range=range)
-
+        if (data1 == data2).all():
+            return 0
+        else:
+            return peak_signal_noise_ratio(data1, data2, data_range=range)
 
 test_metrics = [l1, l2, mean_squared_error, sum_diff_grad, diceCoef, IoU, histogram_intersection, structural_similarity,
                 psnr]
