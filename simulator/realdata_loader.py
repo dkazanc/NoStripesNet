@@ -6,6 +6,7 @@ from mpi4py import MPI
 import multiprocessing
 from h5py import File
 from skimage.transform import resize
+from skimage.exposure import match_histograms
 from httomo.data.hdf._utils import load
 from utils import getFlatsDarks, getMask_functional, loadHDF, save3DTiff, saveTiff, load3DTiff
 
@@ -142,6 +143,9 @@ def convertHDFtoTIFF(tiff_root, hdf_root, pipeline, no_slices=243, sampleNo=0, *
     # clip so norm isn't skewed by anomalies in very low & very high slices
     inpt3D = np.clip(inpt3D, inpt3D[20:-20].min(), inpt3D[20:-20].max())
     target3D = np.clip(target3D, target3D[20:-20].min(), target3D[20:-20].max())
+    # match histogram of input to target
+    for s in range(inpt3D.shape[0]):
+        inpt3D[s] = match_histograms(inpt3D[s], target3D[s])
     save3DTiff(inpt3D, inpt_file, normalise=True)  # each image will be normalized w.r.t. the whole 3D sample
     save3DTiff(target3D, target_file, normalise=True)
     print(f"Full normalized dataset saved to '{tiff_root}'")
