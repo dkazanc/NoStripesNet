@@ -8,6 +8,7 @@ from h5py import File
 from skimage.transform import resize
 from skimage.exposure import match_histograms
 from httomo.data.hdf._utils import load
+from tomophantom.supp.artifacts import stripes as add_stripes
 from utils import getFlatsDarks, getMask_functional, loadHDF, save3DTiff, saveTiff, load3DTiff
 
 
@@ -88,16 +89,28 @@ class RealDataset:
     @staticmethod
     def getCleanStripe(shifts):
         clean = shifts[0].copy()
-        stripe = shifts[0].copy()
-        masks = [getMask_functional(s) for s in shifts]
-        for col in range(stripe.shape[1]):
+        stripes, masks = [], []
+        # Get list of length `num_shifts` of just stripey sinograms
+        for s in shifts:
+            mask = getMask_functional(s)
+            # if sum of mask is 0 (i.e. sinogram has no stripes), artificially add in stripes
+            if mask.sum() == 0:
+                new_s = add_stripes(s, percentage=1, maxthickness=2, intensity_thresh=0.2,
+                                    stripe_type=np.random.choice(['partial', 'full']), variability=0.005)
+                new_s = np.clip(new_s, s.min(), s.max())
+                stripes.append(new_s)
+            else:
+                stripes.append(s)
+            masks.append(mask)
+        # Get clean sinogram by combining all parts of shifts that don't contain stripes
+        for col in range(clean.shape[1]):
             for i, mask in enumerate(masks):
                 vert_sum = np.sum(mask[:, col])
-                if vert_sum == 0:
+                # if all masks have been looped through and none are stripe-free, set clean to last shift
+                if vert_sum == 0 or i+1 == len(masks):
                     clean[:, col] = shifts[i][:, col]
-                else:
-                    stripe[:, col] = shifts[i][:, col]
-        return clean, stripe
+                    break
+        return clean, stripes
 
     def setPreviewFromItem(self, item):
         if type(item) == slice:
@@ -110,12 +123,12 @@ class RealDataset:
 
 
 
-def convertHDFtoTIFF(tiff_root, hdf_root, pipeline, no_slices=243, sampleNo=0, **kwargs):
+def convertHDFtoTIFF(tiff_root, hdf_root, pipeline, no_slices=243, sampleNo=0, num_shifts=20, **kwargs):
     # Create pathnames
     cleanPath = os.path.join(tiff_root, 'clean')
-    stripePath = os.path.join(tiff_root, 'shift00')
+    stripePaths = [os.path.join(tiff_root, 'shift' + str(s).zfill(2)) for s in range(num_shifts)]
     # Create Dataset
-    ds = RealDataset(hdf_root, pipeline, **kwargs)
+    ds = RealDataset(hdf_root, pipeline, num_shifts=num_shifts, **kwargs)
     # Load data in chunks to speed it up
     num_chunks = math.ceil(len(ds) / no_slices)
     for i in range(num_chunks):
@@ -126,26 +139,30 @@ def convertHDFtoTIFF(tiff_root, hdf_root, pipeline, no_slices=243, sampleNo=0, *
         print("\tCreating input/target pairs for each slice & saving data...")
         for slc in range(shifts[0].shape[0]):
             current_slice = (i * no_slices) + slc
-            target, inpt = ds.getCleanStripe([shift[slc] for shift in shifts])
+            target, inpts = ds.getCleanStripe([shift[slc] for shift in shifts])
             # Save input and target to disk as TIF files
             # saving 2D images first means virtual memory can be saved. also acts as back-up in case program crashes
             filename = os.path.join(cleanPath, str(sampleNo).zfill(4) + '_clean_' + str(current_slice).zfill(4))
             saveTiff(target, filename)  # each image will only be normalized w.r.t itself
-            filename = os.path.join(stripePath, str(sampleNo).zfill(4) + '_shift00_' + str(current_slice).zfill(4))
-            saveTiff(inpt, filename)
+            for s in range(len(inpts)):
+                filename = os.path.join(stripePaths[s], str(sampleNo).zfill(4) + '_shift' + str(s).zfill(2) + '_' +
+                                        str(current_slice).zfill(4))
+                saveTiff(inpts[s], filename)
         print(f"Chunk {i+1} saved to '{tiff_root}'")
     # Load 3D images, clip & normalize, then re-save to disk
     print("Loading full 3D dataset and normalizing...")
     target_file = os.path.join(cleanPath, str(sampleNo).zfill(4) + '_clean')
     target3D = load3DTiff(target_file, (len(ds), 402, 362))
-    inpt_file = os.path.join(stripePath, str(sampleNo).zfill(4) + '_shift00')
-    inpt3D = load3DTiff(inpt_file, (len(ds), 402, 362))
     # clip so norm isn't skewed by anomalies in very low & very high slices
     target3D = np.clip(target3D, target3D[20:-20].min(), target3D[20:-20].max())
-    inpt3D = np.clip(inpt3D, inpt3D[20:-20].min(), inpt3D[20:-20].max())
-    # match histogram of input to target
-    for s in range(target3D.shape[0]):
-        target3D[s] = match_histograms(target3D[s], inpt3D[s])
     save3DTiff(target3D, target_file, normalise=True)  # each image will be normalized w.r.t. the whole 3D sample
-    save3DTiff(inpt3D, inpt_file, normalise=True)
+    # now do the same for each shift
+    for s in range(num_shifts):
+        inpt_file = os.path.join(stripePaths[s], str(sampleNo).zfill(4) + '_shift' + str(s).zfill(2))
+        inpt3D = load3DTiff(inpt_file, (len(ds), 402, 362))
+        inpt3D = np.clip(inpt3D, inpt3D[20:-20].min(), inpt3D[20:-20].max())
+        # match histogram of input to target
+        for sino in range(inpt3D.shape[0]):
+            inpt3D[sino] = match_histograms(inpt3D[sino], target3D[sino])
+        save3DTiff(inpt3D, inpt_file, normalise=True)
     print(f"Full normalized dataset saved to '{tiff_root}'")
