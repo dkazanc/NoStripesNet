@@ -126,26 +126,26 @@ def convertHDFtoTIFF(tiff_root, hdf_root, pipeline, no_slices=243, sampleNo=0, *
         print("\tCreating input/target pairs for each slice & saving data...")
         for slc in range(shifts[0].shape[0]):
             current_slice = (i * no_slices) + slc
-            inpt, target = ds.getCleanStripe([shift[slc] for shift in shifts])
+            target, inpt = ds.getCleanStripe([shift[slc] for shift in shifts])
             # Save input and target to disk as TIF files
             # saving 2D images first means virtual memory can be saved. also acts as back-up in case program crashes
             filename = os.path.join(cleanPath, str(sampleNo).zfill(4) + '_clean_' + str(current_slice).zfill(4))
-            saveTiff(inpt, filename)  # each image will only be normalized w.r.t itself
+            saveTiff(target, filename)  # each image will only be normalized w.r.t itself
             filename = os.path.join(stripePath, str(sampleNo).zfill(4) + '_shift00_' + str(current_slice).zfill(4))
-            saveTiff(target, filename)
+            saveTiff(inpt, filename)
         print(f"Chunk {i+1} saved to '{tiff_root}'")
     # Load 3D images, clip & normalize, then re-save to disk
     print("Loading full 3D dataset and normalizing...")
-    inpt_file = os.path.join(cleanPath, str(sampleNo).zfill(4) + '_clean')
-    inpt3D = load3DTiff(inpt_file, (len(ds), 402, 362))
-    target_file = os.path.join(stripePath, str(sampleNo).zfill(4) + '_shift00')
+    target_file = os.path.join(cleanPath, str(sampleNo).zfill(4) + '_clean')
     target3D = load3DTiff(target_file, (len(ds), 402, 362))
+    inpt_file = os.path.join(stripePath, str(sampleNo).zfill(4) + '_shift00')
+    inpt3D = load3DTiff(inpt_file, (len(ds), 402, 362))
     # clip so norm isn't skewed by anomalies in very low & very high slices
-    inpt3D = np.clip(inpt3D, inpt3D[20:-20].min(), inpt3D[20:-20].max())
     target3D = np.clip(target3D, target3D[20:-20].min(), target3D[20:-20].max())
+    inpt3D = np.clip(inpt3D, inpt3D[20:-20].min(), inpt3D[20:-20].max())
     # match histogram of input to target
-    for s in range(inpt3D.shape[0]):
-        inpt3D[s] = match_histograms(inpt3D[s], target3D[s])
-    save3DTiff(inpt3D, inpt_file, normalise=True)  # each image will be normalized w.r.t. the whole 3D sample
-    save3DTiff(target3D, target_file, normalise=True)
+    for s in range(target3D.shape[0]):
+        target3D[s] = match_histograms(target3D[s], inpt3D[s])
+    save3DTiff(target3D, target_file, normalise=True)  # each image will be normalized w.r.t. the whole 3D sample
+    save3DTiff(inpt3D, inpt_file, normalise=True)
     print(f"Full normalized dataset saved to '{tiff_root}'")
