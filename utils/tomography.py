@@ -18,6 +18,8 @@ def reconstruct(sinogram, comm=MPI.COMM_WORLD, ncore=None):
     else:
         raise TypeError(f"Type of item should be one of ['np.ndarray', 'torch.Tensor']. "
                         f"Instead got '{type(sinogram)}'")
+    if sino_np.min() != 0 or sino_np.max() != 1:
+        sino_np = (sino_np - sino_np.min()) / (sino_np.max() - sino_np.min())
     # Find Centre of Rotation
     rot_center = 0
     mid_rank = int(round(comm.size / 2) + 0.1)
