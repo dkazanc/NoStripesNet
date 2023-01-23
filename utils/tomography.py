@@ -41,6 +41,8 @@ def reconstruct(sinogram, comm=MPI.COMM_WORLD, ncore=None):
                               algorithm='gridrec',
                               ncore=ncore)
     reconstruction = scale(reconstruction)[0]
+    if sinogram.ndim == 2:
+        reconstruction = reconstruction.squeeze()
     return reconstruction
 
 

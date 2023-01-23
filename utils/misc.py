@@ -1,4 +1,9 @@
 import matplotlib.pyplot as plt
+import torch
+
+
+def toTensor(array, device=torch.device('cpu')):
+    return torch.tensor(array, dtype=torch.float32).unsqueeze(0).to(device)
 
 
 class Rescale(object):
