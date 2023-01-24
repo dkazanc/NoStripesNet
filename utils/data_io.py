@@ -96,10 +96,13 @@ def loadHDF(file, tomo_params, flats=None, darks=None, comm=MPI.COMM_WORLD, ncor
         else:
             flats = maybe_flats
             darks = maybe_darks
-    else:  # make sure flats & darks are cropped correctly
-        slices = get_slice_list_from_preview(_parse_preview(tomo_params['preview'], shape, [0, shape[0]-1]))
-        flats = flats[tuple(slices)]
-        darks = darks[tuple(slices)]
+    else:
+        # make sure flats & darks are cropped correctly
+        slices = get_slice_list_from_preview(_parse_preview(tomo_params['preview'], shape, [0, shape[0] - 1]))
+        if flats.shape[-2:] != data.shape[-2:]:
+            flats = flats[tuple(slices)]
+        if darks.shape[-2:] != data.shape[-2:]:
+            darks = darks[tuple(slices)]
     # normalize with flats and darks
     data = normalize(data, flats, darks, ncore=ncore, cutoff=10)
     data[data == 0.0] = 1e-09
