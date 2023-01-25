@@ -174,11 +174,17 @@ The first model was trained on full (non-masked) sinograms, and generated full (
 It showed promising results; unlike previous models it was able to remove the stripe artifacts from the inputs.<br>
 However, like previous models that trained on full sinograms, it suffered from blurry and low-resolution outputs.<br>
 
-Therefore, the current challenge is to reduce the blurriness of the model outputs, *whilst retaining* the stripe removal
-capabilities.<br>
-The leading method for doing this involves using the masked networks, which of course bring with them all the problems
-previously encountered that caused the decision to move on to real-life data in the first place.<br>
-
+Subsequent models were trained using the masking approach as previously described.<br>
+These models had less blurry results, but like other similar models they didn't entirely get rid of the artifacts,
+and sometimes introduced entirely new artifacts.
+    ![Real Life Data](images/real_data.png)
+    
+In a similar fashion to before, it was decided to create a "simple" real-life dataset.<br>
+The clean images (targets) were still created in the same way; however, instead of using inputs from the real dataset,<br>
+we created an input image by manually adding in stripes using [TomoPhantom](#references).<br>
+Using this method meant that the **only** difference between inputs and targets was the artifacts; the network didn't
+have any noise to interfere with its inpainting.
+    ![Simple Real Life Data](images/simpler_real_data.png)
 
 ## References
 
