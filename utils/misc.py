@@ -45,7 +45,7 @@ def plot_images(*images, titles=None, subplot_size=None, axis='off', clim=(None,
     plt.show()
 
 
-def plot_data(*data, titles=None, subplot_size=None, lim=(None, None)):
+def plot_data(*data, titles=None, subplot_size=None, axis='on', lim=(None, None)):
     if subplot_size is None:
         subplot_size = (1, len(data))
     for i, d in enumerate(data):
@@ -56,19 +56,25 @@ def plot_data(*data, titles=None, subplot_size=None, lim=(None, None)):
         if type(titles) == list and i < len(titles):
             plt.title(str(titles[i]))
         plt.ylim(lim)
+        plt.axis(axis)
     plt.show()
 
 
-def plot_mix(*mixed_data, subplot_size=None, titles=None, clim=(None, None), lim=(None, None)):
+def plot_mix(*mixed_data, subplot_size=None, titles=None, axis='off', clim=(None, None), lim=(None, None)):
     if subplot_size is None:
         subplot_size = (1, len(mixed_data))
     for i, data in enumerate(mixed_data):
+        if data is None:
+            continue
         plt.subplot(*subplot_size, i+1)
         if type(titles) == list and i < len(titles):
             plt.title(str(titles[i]))
-        if data.ndim == 2:
+        if type(data) == tuple:
+            plt.scatter(data[0], data[1])
+        elif data.ndim == 2:
             plt.imshow(data, cmap='gray')
             plt.clim(*clim)
+            plt.axis(axis)
         else:
             plt.plot(data)
             plt.ylim(lim)
