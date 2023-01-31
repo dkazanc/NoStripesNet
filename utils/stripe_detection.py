@@ -3,8 +3,9 @@ import numpy as np
 import torch
 from larix.methods.misc import STRIPES_DETECT, STRIPES_MERGE
 from tomopy.prep.stripe import _detect_stripe
-from tomopy import normalize, minus_log, recon as recon_fn
 from scipy.ndimage import median_filter, uniform_filter1d, binary_dilation
+import skimage.morphology as mm
+from sklearn.mixture import GaussianMixture
 
 
 def normalise(data):
@@ -98,6 +99,68 @@ def getMask_functional(sinogram, kernel_width=3, min_width=2, max_width=25, thre
     else:
         raise TypeError(f"Expected type {np.ndarray} or {torch.Tensor}. Instead got {type(sinogram)}")
     return mask_sum
+
+
+###############################################
+# Morphological & Clustering stripe detection #
+###############################################
+def black_tophat_mask(sino, num_clusters=6, iterations=3, max_width=10, min_height=25):
+    bt = mm.black_tophat(sino)
+    m = np.zeros_like(bt)
+    m[bt > 0.01] = 1
+    m[:, :33] = 0
+    m[:, -33:] = 0
+    if m[m == 1].size < num_clusters:  # if no. of True values in mask is < n_components, GMM will throw error
+        cm = m
+    else:
+        cm = clusterMask(m, num_clusters, iterations, max_width, min_height).astype(np.bool_)
+    return cm
+
+
+def white_tophat_mask(sino, num_clusters=6, iterations=3, max_width=10, min_height=25):
+    wt = mm.white_tophat(sino)
+    m = np.zeros_like(wt)
+    m[wt > 0.01] = 1
+    m[:, :33] = 0
+    m[:, -33:] = 0
+    if m[m == 1].size < num_clusters:  # if no. of True values in mask is < n_components, GMM will throw error
+        cm = m
+    else:
+        cm = clusterMask(m, num_clusters, iterations, max_width, min_height).astype(np.bool_)
+    return cm
+
+
+def clusterMask(binary_mask, num_clusters=6, iterations=3, max_width=10, min_height=25):
+    # Get vector of coordinates where mask > 0
+    # This needs to be in form (x, y), but numpy lists elements in form (y, x),
+    # so we have to get elements in reverse, hence the slice [::-1]
+    X = np.stack(np.where(binary_mask > 0)[::-1], axis=-1)
+    # Fit a Gaussian Mixture model to cluster the coordinate vector
+    cluster_labels = GaussianMixture(n_components=num_clusters, n_init=iterations).fit_predict(X)
+    mask = np.zeros_like(binary_mask)
+    # Loop through each cluster
+    for l in np.unique(cluster_labels):
+        # get coordinates of every point in `X` that belongs to cluster `l`
+        c = X[cluster_labels == l]
+        # If width and height are within bounds, assume the cluster represents a stripe
+        width = np.max(c[:, 0]) - np.min(c[:, 0])
+        height = np.max(c[:, 1]) - np.min(c[:, 1])
+        if width < max_width and height > min_height:
+            # Set values of mask to 1 that correspond to coordinates in cluster
+            # Needs to be a tuple for indexing to work properly.
+            # `c` has shape (<cluster_size>, 2) so must be transposed to have shape (2, <cluster_size>)
+            # `c` is also in form (x, y) but numpy needs form (y, x) so we have to reverse elements, hence slice [::-1]
+            mask[tuple(c.T[::-1])] = 1
+    return mask
+
+
+def getMask_morphological(sino, num_clusters=6, iterations=3, max_width=10, min_height=25):
+    m1 = black_tophat_mask(sino)
+    m2 = white_tophat_mask(sino)
+    m = m1 + m2
+    footprint = mm.footprints.rectangle(int(0.1 * sino.shape[0]), 2)
+    m = mm.binary_dilation(m, footprint=footprint)
+    return m
 
 
 ##############################################
