@@ -113,7 +113,12 @@ class RealDataset:
         return clean, stripes
 
     def setPreviewFromItem(self, item):
-        if type(item) == slice:
+        if type(item) == tuple:
+            for i in range(len(item)):
+                self.tomo_params['preview'][i]['start'] = item[i].start
+                self.tomo_params['preview'][i]['stop'] = item[i].stop
+                self.tomo_params['preview'][i]['step'] = item[i].step
+        elif type(item) == slice:
             self.tomo_params['preview'][1]['start'] = min(item.start, len(self))
             self.tomo_params['preview'][1]['stop'] = min(item.stop, len(self))
             self.tomo_params['preview'][1]['step'] = item.step
@@ -121,6 +126,45 @@ class RealDataset:
             self.tomo_params['preview'][1]['start'] = item
             self.tomo_params['preview'][1]['stop'] = item + 1
 
+
+def createDynamicDataset(tiff_root, hdf_file, pipeline, no_slices=243, sampleNo=0, sino_size=900):
+    # Create pathname
+    dynamicPath = os.path.join(tiff_root, 'dynamic')
+    # Create Dataset
+    ds = RealDataset(hdf_file, pipeline, flats_file='/dls/i12/data/2022/nt33730-1/rawdata/119675.nxs')
+    num_chunks = math.ceil(len(ds) / no_slices)
+    # Load each "frame" of the dynamic data
+    for f in range(0, ds.shape[0], sino_size * 2):
+        frame_no = f//(sino_size*2)
+        print(f"Loading Frame {frame_no+1}/{ds.shape[0]//(sino_size*2)}")
+        # Load data in chunks to speed it up
+        for chunk in range(num_chunks):
+            print(f"\tLoading Chunk {chunk+1}/{num_chunks}")
+            item = np.s_[f:f+sino_size, chunk*no_slices:(chunk+1)*no_slices]
+            frame = ds[item]  # 3D data with shape (sino_size, no_slices, ds.shape[2])
+            # swap axes so shape is (no_slices, sino_size, ds.shape[2])
+            frame = np.swapaxes(frame, 0, 1)
+            # re-size data to shape (no_slices, 402, 362)
+            if frame.size == 0:  # if data is empty, don't resize (as will cause error)
+                frame = np.ndarray((0, 402, 362))
+            else:
+                frame = resize(frame, (frame.shape[0], 402, 362), anti_aliasing=True)
+            # save each sinogram in frame
+            for s in range(frame.shape[0]):
+                sino = frame[s]
+                filename = os.path.join(dynamicPath, str(sampleNo).zfill(4) + '_frame' + str(frame_no).zfill(2)
+                                        + '_' + str(chunk * no_slices + s).zfill(4))
+                saveTiff(sino, filename)
+            print(f"\tChunk {chunk+1} loaded & saved to '{dynamicPath}'")
+        print("Entire frame saved, now re-loading and normalizing...")
+        # Once entire frame has been loaded, normalize w.r.t the whole 3D data
+        filename = os.path.join(dynamicPath,  str(sampleNo).zfill(4) + '_frame' + str(frame_no).zfill(2))
+        frame3D = load3DTiff(filename, (len(ds), 402, 362))
+        # clip so norm isn't skewed by anomalies in very low & very high slices
+        frame3D = np.clip(frame3D, frame3D[20:-20].min(), frame3D[20:-20].max())
+        # match histogram?
+        save3DTiff(frame3D, filename, normalise=True)
+        print(f"Frame {frame_no+1} done.")
 
 
 def convertHDFtoTIFF(tiff_root, hdf_root, pipeline, no_slices=243, sampleNo=0, num_shifts=20, **kwargs):
