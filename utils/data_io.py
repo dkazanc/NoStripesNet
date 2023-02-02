@@ -40,7 +40,9 @@ def saveTiff(data, path, dtype=np.uint16, normalise=True):
         if dtype == np.uint16:
             data *= 65535
     img = Image.fromarray(data.astype(dtype))
-    img.save(path+'.tif')
+    if not path.endswith('.tif'):
+        path += '.tif'
+    img.save(path)
 
 
 def save3DTiff(data, path, dtype=np.uint16, normalise=True):
