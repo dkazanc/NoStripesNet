@@ -154,12 +154,22 @@ def clusterMask(binary_mask, num_clusters=6, iterations=3, max_width=10, min_hei
     return mask
 
 
-def getMask_morphological(sino, num_clusters=6, iterations=3, max_width=10, min_height=25):
-    m1 = black_tophat_mask(sino)
-    m2 = white_tophat_mask(sino)
+def getMask_morphological(sinogram, num_clusters=6, iterations=3, max_width=10, min_height=25):
+    if isinstance(sinogram, torch.Tensor):
+        sino_np = sinogram.detach().numpy().squeeze()
+    else:
+        sino_np = sinogram
+    m1 = black_tophat_mask(sino_np)
+    m2 = white_tophat_mask(sino_np)
     m = m1 + m2
-    footprint = mm.footprints.rectangle(int(0.1 * sino.shape[0]), 2)
+    footprint = mm.footprints.rectangle(int(0.1 * sino_np.shape[0]), 2)
     m = mm.binary_dilation(m, footprint=footprint)
+    if isinstance(sinogram, torch.Tensor):
+        m = torch.tensor(m, dtype=torch.bool).unsqueeze(0)
+    elif isinstance(sinogram, np.ndarray):
+        m = m.astype(np.bool_)
+    else:
+        raise TypeError(f"Expected type {np.ndarray} or {torch.Tensor}. Instead got {type(sinogram)}")
     return m
 
 
