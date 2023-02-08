@@ -10,6 +10,8 @@ from httomo.data.hdf._utils.load import get_slice_list_from_preview
 def rescale(data, a=0, b=1, imin=None, imax=None):
     """Function to normalise data in range [a, b].
     Had to call it 'rescale' because Python got confused with other functions' parameters."""
+    in_type = data.dtype
+    data = data.astype(np.float64)
     if imin is None:
         imin = data.min()
     if imax is None:
@@ -18,7 +20,8 @@ def rescale(data, a=0, b=1, imin=None, imax=None):
     # this also avoids a Divide By Zero error
     if imin == imax:
         return data
-    return a + ((data - imin)*(b - a)) / (imax - imin)
+    out = a + ((data - imin)*(b - a)) / (imax - imin)
+    return out.astype(in_type)
 
 
 def savePickle(data, path):
