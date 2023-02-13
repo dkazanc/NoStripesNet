@@ -7,9 +7,10 @@ import multiprocessing
 from h5py import File
 from skimage.transform import resize
 from skimage.exposure import match_histograms
-from httomo.data.hdf._utils import load
 from tomophantom.supp.artifacts import stripes as add_stripes
-from utils import getFlatsDarks, getMask_functional, loadHDF, save3DTiff, saveTiff, load3DTiff
+from utils.tomography import getFlatsDarks
+from utils.data_io import loadHDF, loadTiff, load3DTiff, saveTiff, save3DTiff, rescale
+from utils.stripe_detection import getMask_functional, getMask_morphological
 
 
 class RealDataset:
@@ -54,6 +55,10 @@ class RealDataset:
         print("Done.")
         return data
 
+    def setHDFFile(self, path):
+        self.root = os.path.dirname(path)
+        self.file = os.path.basename(path)
+
     def getShifts(self, item):
         """Get a list of vertical shifts of a particular item"""
         file_num = int(self.file.split('.')[0])
@@ -92,7 +97,7 @@ class RealDataset:
         stripes, masks = [], []
         # Get list of length `num_shifts` of just stripey sinograms
         for s in shifts:
-            mask = getMask_functional(s)
+            mask = getMask_morphological(s)
             # if sum of mask is 0 (i.e. sinogram has no stripes), artificially add in stripes
             if mask.sum() == 0:
                 new_s = add_stripes(s, percentage=1, maxthickness=2, intensity_thresh=0.2,
@@ -210,3 +215,60 @@ def convertHDFtoTIFF(tiff_root, hdf_root, pipeline, no_slices=243, sampleNo=0, n
             inpt3D[sino] = match_histograms(inpt3D[sino], target3D[sino])
         save3DTiff(inpt3D, inpt_file, normalise=True)
     print(f"Full normalized dataset saved to '{tiff_root}'")
+
+
+def saveRawData(tiff_root, hdf_root, pipeline, no_slices=243, sampleNo=0, num_shifts=20, **kwargs):
+    """Function to save the raw data from an HDF file.
+    Doesn't apply any processing methods (other than re-sizing & normalizing)."""
+    fileNum = int(os.path.basename(hdf_root).split('.')[0])
+    # Create Dataset
+    ds = RealDataset(hdf_root, pipeline, num_shifts=num_shifts, **kwargs)
+    for s in range(num_shifts):
+        print(f"Loading shift {s}/{num_shifts-1}...")
+        currentFile = os.path.join(os.path.dirname(hdf_root), f'{fileNum + s}.nxs')
+        ds.setHDFFile(currentFile)
+        savePath = os.path.join(tiff_root, f'shift{s:02}')
+        # Create array of min/max values for each slice (for normalizing later)
+        minmax = np.ndarray((len(ds), 2))
+        # Get tomogram in chunks
+        num_chunks = math.ceil(len(ds) / no_slices)
+        for c in range(num_chunks):
+            print(f"\tLoading chunk {c+1}/{num_chunks}...")
+            # Get current chunk of sinograms
+            chunk = ds[:, c*no_slices:(c+1)*no_slices, :]  # shape (1801, <no_slices>, 2560)
+            # swap axes
+            chunk = np.swapaxes(chunk, 0, 1)  # shape (<no_slices>, 1801, 2560)
+            # re-size chunk to shape (<no_slices>, 402, 362)
+            if chunk.size == 0:  # if chunk is empty, move on to next iteration
+                continue
+            else:
+                chunk = resize(chunk, (chunk.shape[0], 402, 362), anti_aliasing=True, preserve_range=True)
+            # Loop through each sinogram in chunk & save to disk
+            for sino in range(chunk.shape[0]):
+                currentSlice = c * no_slices + sino
+                # store min/max values of current slice (for un-scaling later)
+                minmax[currentSlice, 0] = np.nanmin(chunk[sino])
+                minmax[currentSlice, 1] = np.nanmax(chunk[sino])
+                # Save current slice
+                filename = f'{sampleNo:04}_shift{s:02}_{currentSlice:04}'
+                saveTiff(chunk[sino], os.path.join(savePath, filename), normalise=True)
+            print(f"\tChunk {c+1} saved to {savePath}.")
+        print(f"\tAll chunks loaded, now re-loading and normalizing 3D sample...")
+        # Once entire shift has been saved, re-load, un-scale and normalise again w.r.t whole 3D sample
+        sino3D = np.ndarray((len(ds), 402, 362))
+        # Load each slice
+        for slc in range(len(ds)):
+            filename = f'{sampleNo:04}_shift{s:02}_{slc:04}'
+            sino = loadTiff(os.path.join(savePath, filename), normalise=True)
+            # Un-scale sinogram w.r.t. min/max from before it was rescaled
+            # (This retrieves the original range of the sinogram)
+            sino = rescale(sino, a=minmax[slc, 0], b=minmax[slc, 1])
+            sino3D[slc] = sino
+        print(f"\t3D Sample loaded and un-scaled.")
+        # Clip `sino3D` so that rescale is not skewed by outliers
+        sino3D = np.clip(sino3D, sino3D[20:-20].min(), sino3D[20:-20].max())
+        # Save & normalise again, this time w.r.t whole 3D sample
+        filename = f'{sampleNo:04}_shift{s:02}'
+        save3DTiff(sino3D, os.path.join(savePath, filename), normalise=True)
+        print(f"\t3D Sample re-normalized and saved.")
+        print(f"Shift {s} done.")
