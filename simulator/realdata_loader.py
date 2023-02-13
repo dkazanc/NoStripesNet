@@ -272,3 +272,104 @@ def saveRawData(tiff_root, hdf_root, pipeline, no_slices=243, sampleNo=0, num_sh
         save3DTiff(sino3D, os.path.join(savePath, filename), normalise=True)
         print(f"\t3D Sample re-normalized and saved.")
         print(f"Shift {s} done.")
+
+
+def savePairedData(tiff_root, hdf_root, pipeline, no_slices=243, sampleNo=0, num_shifts=20, same_root=False, **kwargs):
+    """Function to save clean/stripe pairs of sinograms.
+    It looks at every sinogram for every shift, and creates pairs based on the following two cases:
+    (1) If the sinogram doesn't contain any stripes, save it as 'clean',
+        then add in stripes synthetically and save this new sinogram as 'stripe'.
+    (2) Otherwise, if the sinogram does contain stripes, save it as 'stripe',
+        then get the equivalent 'clean' sinogram by combining parts of other sinograms that don't contain stripes.
+        (same as method in RealDataset.getCleanStripe)
+    Parameter `same_root` specifies the directory in which sinograms should be saved;
+    If `same_root` is False, then two sub-directories are created; one for each case as described above, i.e.:
+        <tiff_root>/fake_artifacts/clean/0000_shift...   (for clean images created in case 1)
+        <tiff_root>/fake_artifacts/stripe/0000_shift...  (for stripe images created in case 1)
+        <tiff_root>/real_artifacts/clean/0000_shift...   (for clean images created in case 2)
+        <tiff_root>/real_artifacts/stripe/0000_shift...  (for stripe images created in case 2)
+    If `same_root` is True, then all clean/stripe pairs will be stored under the same root, i.e.:
+        <tiff_root>/clean/0000_shift...  (for clean images created in both case 1 and 2)
+        <tiff_root>/stripe/0000_shift... (for stripe images created in both case 1 and 2)
+    """
+    # Create pathnames
+    if same_root:
+        realArtPath = os.path.join(tiff_root, 'real_artifacts')
+        fakeArtPath = os.path.join(tiff_root, 'fake_artifacts')
+    else:
+        realArtPath = tiff_root
+        fakeArtPath = tiff_root
+    fileNum = int(os.path.basename(hdf_root).split('.')[0])
+    # Create Dataset
+    ds = RealDataset(hdf_root, pipeline, num_shifts=num_shifts, **kwargs)
+    for s in range(num_shifts):
+        print(f"Loading shift {s}/{num_shifts-1}...")
+        currentFile = os.path.join(os.path.dirname(hdf_root), f'{fileNum + s}.nxs')
+        ds.setHDFFile(currentFile)
+        # Create dict of min/max values for each slice (for normalizing later)
+        minmax = {}
+        # Get tomogram in chunks
+        num_chunks = math.ceil(len(ds) / no_slices)
+        for c in range(num_chunks):
+            print(f"\tLoading chunk {c+1}/{num_chunks}...")
+            # Get current chunk of sinograms
+            chunk = ds[:, c*no_slices:(c+1)*no_slices, :]  # shape (1801, <no_slices>, 2560)
+            # swap axes
+            chunk = np.swapaxes(chunk, 0, 1)  # shape (<no_slices>, 1801, 2560)
+            # re-size chunk to shape (<no_slices>, 402, 362)
+            if chunk.size == 0:  # if chunk is empty, move on to next iteration
+                continue
+            else:
+                chunk = resize(chunk, (chunk.shape[0], 402, 362), anti_aliasing=True)
+            # Loop through each sinogram in chunk
+            for sino in range(chunk.shape[0]):
+                currentSlice = c * no_slices + sino  # slice idx w.r.t. current shift
+                # Detect stripes
+                mask = getMask_morphological(chunk[sino])
+                # If there are stripes in sino, get clean from old directory
+                if mask.sum() != 0:
+                    relativeSlice = currentSlice - 13 * s  # slice idx w.r.t. shift00
+                    relativeSlice = max(0, min(relativeSlice, len(ds)-1))
+                    # TO DO: should make more flexible way of getting 'clean' image
+                    # that doesn't rely on 'clean' data having already been generated
+                    clean = loadTiff(f'realdata/old/0000/clean/0000_clean_{relativeSlice:04}.tif',
+                                     normalise=False)
+                    # Save clean & stripe pair to new location
+                    filename = f'{sampleNo:04}_shift{s:02}_{currentSlice:04}.tif'
+                    filepath = os.path.join(realArtPath, 'clean', filename)
+                    saveTiff(clean, filepath, normalise=False)
+                    filepath = os.path.join(realArtPath, 'stripe', filename)
+                    # Store min/max of current slice in dictionary
+                    minmax[filepath] = (chunk[sino].min(), chunk[sino].max())
+                    saveTiff(chunk[sino], filepath, normalise=True)
+                else:
+                    stripe = add_stripes(chunk[sino], percentage=1, maxthickness=2, intensity_thresh=0.2,
+                                         stripe_type=np.random.choice(['partial', 'full']), variability=0.005)
+                    stripe = np.clip(stripe, chunk[sino].min(), chunk[sino].max())
+                    # Save clean & stripe pair to new location
+                    filename = f'{sampleNo:04}_shift{s:02}_{currentSlice:04}.tif'
+                    filepath = os.path.join(fakeArtPath, 'clean', filename)
+                    # Store min/max of current slice in dictionary
+                    minmax[filepath] = (chunk[sino].min(), chunk[sino].max())
+                    saveTiff(chunk[sino], filepath, normalise=True)
+                    filepath = os.path.join(fakeArtPath, 'stripe', filename)
+                    saveTiff(stripe, filepath, normalise=True)
+            print(f"\tChunk {c+1} saved to {tiff_root}.")
+        print(f"Entire chunk saved, now re-loading and re-normalizing.")
+        # Normalise each shift w.r.t entire 3D sample
+        sino3D = np.ndarray((len(ds), 402, 362))
+        for slc, path in enumerate(minmax.keys()):
+            sino = loadTiff(path, normalise=True)
+            # Un-scale sinogram w.r.t. min/max from before it was rescaled
+            # (This retrieves the original range of the sinogram)
+            sino = rescale(sino, a=minmax[path][0], b=minmax[path][1])
+            sino3D[slc] = sino
+        # Clip `sino3D` so that rescale is not skewed by outliers
+        sino3D = np.clip(sino3D, sino3D[20:-20].min(), sino3D[20:-20].max())
+        # Normalise 3D sample
+        sino3D = rescale(sino3D, a=0, b=65535).astype(np.uint16, copy=False)
+        print(f"3D sample has been normalized. Now saving each slice...")
+        # Save every slice back to its original location
+        for slc, path in enumerate(minmax.keys()):  # relies on dictionary being ordered
+            saveTiff(sino3D[slc], path, normalise=False)
+        print(f"Shift {s} done.")
