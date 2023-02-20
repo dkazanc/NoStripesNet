@@ -3,7 +3,8 @@ import pickle
 from PIL import Image
 from mpi4py import MPI
 from tomopy import normalize, minus_log
-from httomo.data.hdf.loaders import standard_tomo, _parse_preview
+from httomo.data.hdf.loaders import standard_tomo
+from httomo.utils import _parse_preview
 from httomo.data.hdf._utils.load import get_slice_list_from_preview
 
 

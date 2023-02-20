@@ -7,8 +7,8 @@ from torch.utils.data import Dataset, Subset
 from h5py import File
 from mpi4py import MPI
 import multiprocessing
-from utils import loadTiff, loadHDF, getFlatsDarks, getMask_functional
-from utils.stripe_detection import gradient_sum_tv
+from utils import loadTiff, loadHDF, getFlatsDarks
+from utils.stripe_detection import gradient_sum_tv, getMask_functional
 
 
 class NewDataset(Dataset):
