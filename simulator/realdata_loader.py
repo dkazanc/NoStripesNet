@@ -236,6 +236,7 @@ def saveRawData(tiff_root, hdf_root, pipeline, no_slices=243, sampleNo=0, num_sh
             print(f"\tLoading chunk {c+1}/{num_chunks}...")
             # Get current chunk of sinograms
             chunk = ds[:, c*no_slices:(c+1)*no_slices, :]  # shape (1801, <no_slices>, 2560)
+            print(f"\t\tResizing...")
             # swap axes
             chunk = np.swapaxes(chunk, 0, 1)  # shape (<no_slices>, 1801, 2560)
             # re-size chunk to shape (<no_slices>, 402, 362)
@@ -243,6 +244,7 @@ def saveRawData(tiff_root, hdf_root, pipeline, no_slices=243, sampleNo=0, num_sh
                 continue
             else:
                 chunk = resize(chunk, (chunk.shape[0], 402, 362), anti_aliasing=True, preserve_range=True)
+            print(f"\t\tSaving...")
             # Loop through each sinogram in chunk & save to disk
             for sino in range(chunk.shape[0]):
                 currentSlice = c * no_slices + sino
@@ -295,7 +297,11 @@ def savePairedData(tiff_root, hdf_root, pipeline, no_slices=243, sampleNo=0, num
     # Create pathnames
     if same_root:
         realArtPath = os.path.join(tiff_root, 'real_artifacts')
+        if not os.path.exists(realArtPath):
+            os.mkdir(realArtPath)
         fakeArtPath = os.path.join(tiff_root, 'fake_artifacts')
+        if not os.path.exists(fakeArtPath):
+            os.mkdir(fakeArtPath)
     else:
         realArtPath = tiff_root
         fakeArtPath = tiff_root
