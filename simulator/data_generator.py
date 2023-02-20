@@ -2,10 +2,10 @@ import argparse
 import os
 import yaml
 from .data_simulator import generateSample, simulateFlats, simulateStripes
-from .realdata_loader import convertHDFtoTIFF
+from .realdata_loader import convertHDFtoTIFF, createDynamicDataset, savePairedData, saveRawData
 
 
-def makeDirectories(dataDir, sampleNo, shifts):
+def makeDirectories(dataDir, sampleNo, shifts, mode):
     """Function to make sub-directories for data generation.
     These will have the following structure:
         .
@@ -18,14 +18,28 @@ def makeDirectories(dataDir, sampleNo, shifts):
     IMPORTANT: This function assumes it is being run from: NoStripesNet/
                Therefore it is important that this function is executed in the correct location from the terminal.
     """
-    samplePath = os.path.join(dataDir, str(sampleNo).zfill(4))
-    os.makedirs(samplePath, exist_ok=True)
-    cleanPath = os.path.join(samplePath, 'clean')
-    os.makedirs(cleanPath, exist_ok=True)
-    for shift in range(shifts):
-        shiftPath = os.path.join(samplePath, 'shift' + str(shift).zfill(2))
-        os.makedirs(shiftPath, exist_ok=True)
-    return samplePath, cleanPath
+    mainPath = dataDir
+    if mode in ['simple, complex', 'raw']:
+        mainPath = os.path.join(dataDir, str(sampleNo).zfill(4))
+        os.makedirs(mainPath, exist_ok=True)
+        cleanPath = os.path.join(mainPath, 'clean')
+        os.makedirs(cleanPath, exist_ok=True)
+        for shift in range(shifts):
+            shiftPath = os.path.join(mainPath, 'shift' + str(shift).zfill(2))
+            os.makedirs(shiftPath, exist_ok=True)
+    elif mode =='real':
+        realArtPath = os.path.join(dataDir, 'real_artifacts')
+        os.makedirs(realArtPath, exist_ok=True)
+        fakeArtPath = os.path.join(dataDir, 'fake_artifacts')
+        os.makedirs(fakeArtPath, exist_ok=True)
+    elif mode == 'dynamic':
+        dynamicPath = os.path.join(dataDir, 'dynamic')
+        os.makedirs(dynamicPath, exist_ok=True)
+    else:
+        raise ValueError(
+            "Mode should be one of [simple, complex real, raw, dynamic]. "
+            f"Instead got '{mode}'.")
+    return mainPath
 
 
 def get_args():
@@ -73,25 +87,42 @@ if __name__ == '__main__':
     for sampleNo in range(start, total_samples):
         if verbose:
             print(f"Generating sample [{str(sampleNo).zfill(4)} / {str(total_samples-1).zfill(4)}]")
-        samplePath, cleanPath = makeDirectories(root, sampleNo, shifts)
+        mainPath = makeDirectories(root, sampleNo, shifts)
         if args.mode == 'simple':
+            cleanPath = os.path.join(mainPath, 'clean')
             sample_clean = generateSample(size, objects, output_path=cleanPath, sampleNo=sampleNo, verbose=verbose)
             # TO-DO: Turn all the parameters below into CLI arguments
             sample_shifts = simulateStripes(sample_clean, percentage=1.2, max_thickness=3.0, intensity=0.25,
-                                            kind='mix', variability=0, output_path=samplePath, sampleNo=sampleNo,
+                                            kind='mix', variability=0, output_path=mainPath, sampleNo=sampleNo,
                                             verbose=verbose)
         elif args.mode == 'complex':
             # don't save 'clean' sample after it's generated
             # instead save 'clean' sample after flat noise has been added
             sample_clean = generateSample(size, objects, sampleNo=sampleNo, verbose=verbose)
             sample_shifts = simulateFlats(sample_clean, size, I0=I0, flatsnum=flatsnum, shifted_positions_no=shifts,
-                                      shift_step=shift_step, output_path=samplePath, sampleNo=sampleNo, verbose=verbose)
+                                      shift_step=shift_step, output_path=mainPath, sampleNo=sampleNo, verbose=verbose)
         elif args.mode == 'real':
             pipeline = yaml.safe_load(open(args.pipeline))
             if args.hdf_file is None:
-                raise ValueError("HDF File is None. Please include '--hdf-file' option.")
-            convertHDFtoTIFF(samplePath, args.hdf_file, pipeline, sampleNo=sampleNo, num_shifts=shifts,
-                             shiftstep=shift_step)
+                raise ValueError(
+                    "HDF File is None. Please include '--hdf-file' option.")
+            savePairedData(mainPath, args.hdf_file, pipeline,
+                           sampleNo=sampleNo, num_shifts=shifts,
+                           shiftstep=shift_step)
+        elif args.mode == 'raw':
+            pipeline = yaml.safe_load(open(args.pipeline))
+            if args.hdf_file is None:
+                raise ValueError(
+                    "HDF File is None. Please include '--hdf-file' option.")
+            saveRawData(mainPath, args.hdf_file, pipeline, sampleNo=sampleNo,
+                        num_shifts=shifts)
+        elif args.mode == 'dynamic':
+            pipeline = yaml.safe_load(open(args.pipeline))
+            if args.hdf_file is None:
+                raise ValueError(
+                    "HDF File is None. Please include '--hdf-file' option.")
+            createDynamicDataset(mainPath, args.hdf_file, pipeline,
+                                 sampleNo=sampleNo, sino_size=900)
         else:
             raise ValueError(f"Option '--mode' should be one of ['simple', 'complex', 'real']. "
                              f"Instead got '{args.mode}'.")
