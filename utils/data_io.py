@@ -1,11 +1,17 @@
 import numpy as np
 import pickle
 from PIL import Image
+from mpi4py import MPI
+from tomopy import normalize, minus_log
+from httomo.data.hdf.loaders import standard_tomo
+from httomo.utils import _parse_preview
+from httomo.data.hdf._utils.load import get_slice_list_from_preview
 
 
 def rescale(data, a=0, b=1, imin=None, imax=None):
     """Function to normalise data in range [a, b].
     Had to call it 'rescale' because Python got confused with other functions' parameters."""
+    data = data.astype(np.float32, copy=False)
     if imin is None:
         imin = data.min()
     if imax is None:
@@ -14,7 +20,8 @@ def rescale(data, a=0, b=1, imin=None, imax=None):
     # this also avoids a Divide By Zero error
     if imin == imax:
         return data
-    return a + ((data - imin)*(b - a)) / (imax - imin)
+    out = a + ((data - imin)*(b - a)) / (imax - imin)
+    return out
 
 
 def savePickle(data, path):
@@ -36,7 +43,9 @@ def saveTiff(data, path, dtype=np.uint16, normalise=True):
         if dtype == np.uint16:
             data *= 65535
     img = Image.fromarray(data.astype(dtype))
-    img.save(path+'.tif')
+    if not path.endswith('.tif'):
+        path += '.tif'
+    img.save(path)
 
 
 def save3DTiff(data, path, dtype=np.uint16, normalise=True):
@@ -55,6 +64,8 @@ def save3DTiff(data, path, dtype=np.uint16, normalise=True):
 
 
 def loadTiff(path, dtype=np.uint16, normalise=True):
+    if not path.endswith('.tif'):
+        path += '.tif'
     img = Image.open(path)
     data = np.array(img, dtype=dtype)
     if normalise:
@@ -73,3 +84,34 @@ def load3DTiff(path, shape, dtype=np.uint16, normalise=True):
     if normalise:
         data = rescale(data, 0, 1)
     return data
+
+
+def loadHDF(file, tomo_params, flats=None, darks=None, comm=MPI.COMM_WORLD, ncore=None):
+    # load raw data
+    data, maybe_flats, maybe_darks, angles, *shape = standard_tomo(tomo_params['name'],
+                                                                   file,
+                                                                   tomo_params['data_path'],
+                                                                   tomo_params['image_key_path'],
+                                                                   tomo_params['dimension'],
+                                                                   tomo_params['preview'],
+                                                                   tomo_params['pad'],
+                                                                   comm)
+    if flats is None and darks is None:
+        if maybe_flats.size == 0 and maybe_darks.size == 0:
+            raise RuntimeError("File contains no flat or dark field data, and no flat or dark fields were passed as "
+                               "parameters. Data cannot be normalized.")
+        else:
+            flats = maybe_flats
+            darks = maybe_darks
+    else:
+        # make sure flats & darks are cropped correctly
+        slices = get_slice_list_from_preview(_parse_preview(tomo_params['preview'], shape, [0, shape[0] - 1]))
+        if flats.shape[-2:] != data.shape[-2:]:
+            flats = flats[tuple(slices)]
+        if darks.shape[-2:] != data.shape[-2:]:
+            darks = darks[tuple(slices)]
+    # normalize with flats and darks
+    data = normalize(data, flats, darks, ncore=ncore, cutoff=10)
+    data = np.clip(data, 1e-09, 1)
+    data = minus_log(data, ncore=ncore)
+    return data, angles

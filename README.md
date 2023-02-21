@@ -143,11 +143,48 @@ The results of this can be seen below:
 It is clear the simpler dataset leads to much better performance, reinforcing the theory that noise is complicating
 the network's outcomes.<br>
 
-Now, the challenge is to get results as good as this on the noisy data.<br>
-The current approach is to first optimize the model's performance on the simple data,
-then using transfer learning to train that model on the more realistic data.<br>
-This is currently being experimented with.
+The challenge after this was to get similar results on the noisy data.<br>
+This proved more difficult than originally thought, and no major progress or breakthroughs have since been achieved.<br>
+Therefore, it was decided to temporarily stop working on the simulated data and instead move onto the real-life data.<br>
 
+The first challenge in using the real data was getting it into the right format for the network.<br>
+The original plan was to get the data directly from HDF files then pass them straight into the network as NumPy arrays.<br>
+However, it took around 20 seconds to load one 2D slice of a sample - although this may not sound like much, it quickly adds up:<br>
+ - There are 20 vertical shifts of the sample, and all are needed to calculate the input/target pair.
+ - With a batch size of 16, this gives 20s * 20 * 16 = 6400s or 1.78 hours per batch.
+
+Considering there may be hundreds of batches per training epoch, it quickly became clear that this was not a viable or efficient option.<br>
+
+The other option was to pre-process the real data and save the input/target pair as a series of 2D Tiff images 
+(in the same manner as the simulated data).<br>
+I was initially reluctant to do this due to storage constraints, however now it was clear this was the only option.<br>
+Saving the data in this way meant it could be sped up; 
+ - As the 2D slices did not have to be selected randomly anymore, multiple slices could be selected at once to get a 3D image (still a subset of the entire 3D sample).<br>
+ - Then, the 20 shifts could be loaded for this 3D image, rather than for each individual 2D slice.<br>
+ - It was found experimentally that the optimum number of slices to load at one time was 243.
+   - with a total number of slices of 2160, this meant 9 total loads
+ - Each load (of 243 slices) took around 60s, and so total load time was 60s * 20 shifts * 9 loads = 10800s or 3 hours.<br>
+ 
+While this time is larger than the previous, it is worth remembering that this is for the **entire sample**, not just one batch of 16 images.<br>
+Another advantage of saving the data in this way is that it is in the same format as the simulated data;
+no extra pre-processing is required to train a neural network on the real-life data.<br>
+
+So now that the real-life data was in the right format, it was time to train a model on it.<br>
+The first model was trained on full (non-masked) sinograms, and generated full (non-masked) sinograms.<br>
+It showed promising results; unlike previous models it was able to remove the stripe artifacts from the inputs.<br>
+However, like previous models that trained on full sinograms, it suffered from blurry and low-resolution outputs.<br>
+
+Subsequent models were trained using the masking approach as previously described.<br>
+These models had less blurry results, but like other similar models they didn't entirely get rid of the artifacts,
+and sometimes introduced entirely new artifacts.
+    ![Real Life Data](images/real_data.png)
+    
+In a similar fashion to before, it was decided to create a "simple" real-life dataset.<br>
+The clean images (targets) were still created in the same way; however, instead of using inputs from the real dataset,<br>
+we created an input image by manually adding in stripes using [TomoPhantom](#references).<br>
+Using this method meant that the **only** difference between inputs and targets was the artifacts; the network didn't
+have any noise to interfere with its inpainting.
+    ![Simple Real Life Data](images/simpler_real_data.png)
 
 ## References
 

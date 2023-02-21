@@ -1,22 +1,18 @@
 import os
-import random
 import argparse
 import warnings
 import numpy as np
-import matplotlib.pyplot as plt
 from datetime import datetime
 
-import torch
 from torch.utils.data import DataLoader, Subset
 import torchvision.transforms as transforms
-import torchvision.utils as utils
 
-from models import BaseGAN, WindowGAN, MaskedGAN, init_weights
-from models.discriminators import *
-from models.generators import *
-from visualizers import BaseGANVisualizer, PairedWindowGANVisualizer, MaskedVisualizer
-from datasets import PairedWindowDataset, BaseDataset, PairedFullDataset, MaskedDataset, RandomSubset
-from metrics import Rescale
+from .models import BaseGAN, WindowGAN, MaskedGAN, init_weights
+from .models.discriminators import *
+from .models.generators import *
+from .visualizers import BaseGANVisualizer, PairedWindowGANVisualizer, MaskedVisualizer
+from .datasets import PairedWindowDataset, BaseDataset, PairedFullDataset, MaskedDataset, RandomSubset
+from utils import Rescale
 
 
 # In the future this should be in NoStripesNet/simulator/data_io.py
@@ -146,10 +142,13 @@ def train(model, dataloader, epochs, save_every_epoch=False, save_name=None, sav
     # Once training has finished, plot some data and save model state
     finish_time = datetime.now()
     print(f"Total Training time: {finish_time - start_time}")
-    vis.plot_losses()
-    vis.plot_one()
-    vis.plot_real_vs_fake_batch()
-    vis.plot_real_vs_fake_recon()
+    try:
+        vis.plot_losses()
+        vis.plot_one()
+        vis.plot_real_vs_fake_batch()
+        vis.plot_real_vs_fake_recon()
+    except OSError as e:  # if plotting causes OoM, don't crash so model can still be saved
+        print(e)
     # Save models if user desires and save_every_epoch is False
     if not save_every_epoch and (force or input("Save model? (y/[n]): ") == 'y'):
         saveModel(model, epochs, save_dir, save_name)
@@ -160,7 +159,7 @@ def train(model, dataloader, epochs, save_every_epoch=False, save_name=None, sav
 
 def get_args():
     parser = argparse.ArgumentParser(description="Train neural network.")
-    parser.add_argument('-r', "--root", type=str, default='../data',
+    parser.add_argument('-r', "--root", type=str, default='./data',
                         help="Path to input data used in network")
     parser.add_argument('-m', "--model", type=str, default='base',
                         help="Type of model to train. Must be one of ['window', 'base', 'full', 'mask', 'simple].")

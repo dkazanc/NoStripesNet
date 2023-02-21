@@ -1,15 +1,77 @@
-import sys
-sys.path.append('..')  # crap solution to an even worse problem
 import os
 import itertools
-import functools
 import random
 import numpy as np
 import torch
 from torch.utils.data import Dataset, Subset
-from scipy.ndimage import uniform_filter1d
-from simulator.data_io import loadTiff
-from metrics import *
+from h5py import File
+from mpi4py import MPI
+import multiprocessing
+from utils import loadTiff, loadHDF, getFlatsDarks
+from utils.stripe_detection import gradient_sum_tv, getMask_functional
+
+
+class NewDataset(Dataset):
+    """Dataset to get sinograms from directories (provided data was generated according to the scripts in ../simulators)
+        Data is split into train:validate:test according to parameter `tvt`, a tuple of the ratios"""
+
+    def __init__(self, root, mode, tvt, transform=None):
+        self.root = root
+        self.tvt = tvt
+        # Create list of all images
+        self.all_filepaths = []
+        # `root` will contain either './clean' and './stripe' or './<sample_no>'
+        sub_dirs = sorted(os.listdir(root))
+        # check for sample number
+        if '0000' in sub_dirs:
+            for sub_dir in sub_dirs:
+                subsub_dirs = sorted(os.listdir(os.path.join(root, sub_dir)))
+                targets = sorted(os.listdir(os.path.join(root, sub_dir, subsub_dirs[0])))
+                targets = [os.path.join(root, sub_dir, subsub_dirs[0], t) for t in targets]
+                for shift in subsub_dirs[1:]:
+                    inpts = sorted(os.listdir(os.path.join(root, sub_dir, shift)))
+                    inpts = [os.path.join(root, sub_dir, shift, i) for i in inpts]
+                    self.all_filepaths.extend(list(zip(targets, inpts)))
+        elif 'clean' in sub_dirs and 'stripe' in sub_dirs:
+            targets = [os.path.join(root, 'clean', t) for t in sorted(os.listdir(os.path.join(root, 'clean')))]
+            inpts = [os.path.join(root, 'stripe', i) for i in sorted(os.listdir(os.path.join(root, 'stripe')))]
+            self.all_filepaths = list(zip(targets, inpts))
+        else:
+            raise RuntimeError(f"Unrecognized Directory Structure: '{root}/{sub_dirs}'")
+        # Set current dataset to the dataset that corresponds to mode
+        self.mode, self.datasets, self.filepaths = None, [], []
+        self.setMode(mode)
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.filepaths)
+
+    def __getitem__(self, item):
+        """For each item in a dataset, return a pair containing the clean sinogram and the same sinogram with stripes
+        """
+        cleanPath, stripePath = self.filepaths[item]
+        # Get clean & stripe from path
+        clean = loadTiff(cleanPath, dtype=np.float32)
+        stripe = loadTiff(stripePath, dtype=np.float32)
+        # Apply any transformations
+        if self.transform is not None:
+            clean = self.transform(clean)
+            stripe = self.transform(stripe)
+        return clean, stripe
+
+    def setMode(self, mode):
+        num_train = int((self.tvt[0] / sum(self.tvt)) * len(self.all_filepaths))
+        num_validate = int((self.tvt[1] / sum(self.tvt)) * len(self.all_filepaths))
+        num_test = int((self.tvt[2] / sum(self.tvt)) * len(self.all_filepaths))
+        if mode == "train":
+            self.filepaths = self.all_filepaths[:num_train]
+        elif mode == "validate":
+            self.filepaths = self.all_filepaths[num_train:num_validate + num_train]
+        elif mode == "test":
+            self.filepaths = self.all_filepaths[-num_test:]
+        else:
+            raise ValueError(f"Mode should be one of 'train', 'validate' or 'test'. Instead got {mode}")
+        self.mode = mode
 
 
 class BaseDataset(Dataset):
@@ -24,12 +86,19 @@ class BaseDataset(Dataset):
         # Create list of all datasets
         # and lists for train/test/validate datasets
         self.all_datasets = sorted(os.listdir(self.root))
-        num_train = int((tvt[0] / sum(tvt)) * len(self.all_datasets))
-        num_validate = int((tvt[1] / sum(tvt)) * len(self.all_datasets))
-        num_test = int((tvt[2] / sum(tvt)) * len(self.all_datasets))
-        self.train_datasets = self.all_datasets[:num_train]
-        self.validate_datasets = self.all_datasets[num_train:num_train + num_validate]
-        self.test_datasets = self.all_datasets[-num_test:]
+        # if there is only one dataset, set train/validate/test all to that one dataset
+        # this will cause overfitting, but we have no choice with only 1 dataset
+        if len(self.all_datasets) == 1:
+            self.train_datasets = self.all_datasets
+            self.validate_datasets = self.all_datasets
+            self.test_datasets = self.all_datasets
+        else:
+            num_train = int((tvt[0] / sum(tvt)) * len(self.all_datasets))
+            num_validate = int((tvt[1] / sum(tvt)) * len(self.all_datasets))
+            num_test = int((tvt[2] / sum(tvt)) * len(self.all_datasets))
+            self.train_datasets = self.all_datasets[:num_train]
+            self.validate_datasets = self.all_datasets[num_train:num_train + num_validate]
+            self.test_datasets = self.all_datasets[-num_test:]
         # Set current dataset to the dataset that corresponds to mode
         self.mode, self.datasets, self.filepaths = None, [], []
         self.setMode(mode)
@@ -176,10 +245,12 @@ class PairedFullDataset(PairedWindowDataset):
         return clean_full, stripe_full, plain_full
 
 
-class MaskedDataset(BaseDataset):
+class MaskedDataset(NewDataset):
     def __init__(self, root, mode, tvt, size=256, shifts=5, transform=None,
                  kernel_width=3, min_width=2, max_width=25, threshold=0.01, filter_size=10, simple=False):
-        super().__init__(root, mode, tvt, size=size, shifts=shifts, transform=transform)
+        super().__init__(root, mode, tvt, transform=transform)
+        self.size = size
+        self.shifts = shifts
         self.k = kernel_width
         self.min_width = min_width
         self.max_width = max_width
@@ -188,12 +259,10 @@ class MaskedDataset(BaseDataset):
         self.simple = simple
 
     def __len__(self):
-        return super().__len__() * self.shifts
+        return super().__len__()
 
     def __getitem__(self, item):
-        clean, *shifts = super().__getitem__(item // self.shifts)
-        shift_idx = item % self.shifts
-        stripe = shifts[shift_idx]
+        clean, stripe = super().__getitem__(item)
         if self.simple:
             mask = self.getSimpleMask(clean, stripe)
         else:
@@ -219,30 +288,13 @@ class MaskedDataset(BaseDataset):
         return mask
 
     def getMask(self, sinogram):
-        if isinstance(sinogram, torch.Tensor):
-            sino_np = sinogram.detach().numpy().squeeze()
-        else:
-            sino_np = sinogram
-        mask_vo = detect_stripe_vo(sino_np, filter_size=self.filter_size).astype(int)
-        mask_mean = detect_stripe_mean(sino_np, eta=self.eta, kernel_width=self.k, min_width=self.min_width,
-                                       max_width=self.max_width).astype(int)
-        mask_larix = detect_stripe_larix(sino_np).astype(int)
-        mask_sum = mask_vo + mask_mean + mask_larix
-        mask_sum[mask_sum < 2] = 0
-
-        # if there is a 3 pixel gap or less between stripes, merge them
-        convolutions = np.lib.stride_tricks.sliding_window_view(mask_sum, (sinogram.shape[-2], self.k+2)).squeeze()
-        for i, conv in enumerate(convolutions):
-            if conv[0, 0] and conv[0, -1]:
-                mask_sum[..., i:i + self.k+2] = True
-
-        if isinstance(sinogram, torch.Tensor):
-            mask_sum = torch.tensor(mask_sum, dtype=torch.bool).unsqueeze(0)
-        elif isinstance(sinogram, np.ndarray):
-            mask_sum = mask_sum.astype(np.bool_)
-        else:
-            raise TypeError(f"Expected type {np.ndarray} or {torch.Tensor}. Instead got {type(sinogram)}")
-        return mask_sum
+        mask = getMask_functional(sinogram,
+                                   kernel_width=self.k,
+                                   min_width=self.min_width,
+                                   max_width=self.max_width,
+                                   threshold=self.eta,
+                                   filter_size=self.filter_size)
+        return mask
 
 
 class RandomSubset(Subset):

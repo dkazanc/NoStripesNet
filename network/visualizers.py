@@ -1,13 +1,14 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
-
 import torch
-from torchvision import utils
+from torchvision import utils as tv_utils
 from tomobar.methodsDIR import RecToolsDIR
 
-from datasets import *
-from models.gans import *
+from .datasets import *
+from .models.gans import *
+from utils.tomography import reconstruct
+from utils.metrics import toNumpy
 
 
 def getRectools2D(size, device='cpu'):
@@ -24,16 +25,28 @@ def getRectools2D(size, device='cpu'):
     return rectools
 
 
-def batch_reconstruct(batch, size, device='cpu'):
-    rectools = getRectools2D(size, device)
-    p = int(np.sqrt(2) * size)
-    assert (batch.shape[1] == 1)
-    new_batch = torch.zeros((batch.shape[0], 1, size, size))
-    for i in range(batch.shape[0]):  # is looping best idea? possible to vectorise?
-        sinogram = batch[i].squeeze().numpy()
-        sinogram = np.delete(sinogram, np.s_[p:], axis=-1)  # crop sinogram to correct size
-        new_batch[i] = torch.from_numpy(rectools.FBP(sinogram)).unsqueeze(0)
-    return new_batch
+def batch_reconstruct(batch, size, recon_fn='tomopy', device='cpu'):
+    """Function that takes in a batch of sinograms of shape (B, C, H, W)
+    and returns the reconstruction of every item in that batch as tensors of shape (B, C, H, W)
+    where B is batch size, C is no. channels, H is height, and W is width."""
+    if batch.shape[1] != 1:
+        raise NotImplementedError("Functionality for images with more than 1 channel is not implemented.")
+    batch = toNumpy(batch)  # new shape: (B, H, W)
+    if recon_fn == 'tomopy':
+        recon_fn = reconstruct
+    elif recon_fn == 'tomobar':
+        rectools = getRectools2D(size, device=device)
+        recon_fn = rectools.FBP
+    else:
+        raise ValueError(f"Recon function should be one of ['tomopy', 'tomobar']. Instead got '{recon_fn}'.")
+    # Loop through each sinogram in batch, reconstruct it, then append it to new array
+    recons = []
+    for sino in batch:
+        recons.append(recon_fn(sino))
+    recons = np.array(recons)
+    if recons.ndim == 3:
+        recons = recons[:, None, :, :]
+    return torch.from_numpy(recons)
 
 
 class BaseGANVisualizer:
@@ -43,6 +56,7 @@ class BaseGANVisualizer:
         self.disc = self.model.disc
         self.dataset = dataset
         self.size = size
+        self.recon_size = None
         self.block = block
 
     def plot_losses(self):
@@ -75,7 +89,9 @@ class BaseGANVisualizer:
         stripe = self.model.realA.detach().cpu()[item]
         fake = self.model.fakeB.detach().cpu()[item]
         images = [clean, stripe, fake]
-        images += batch_reconstruct(torch.stack(images, dim=0), self.size)
+        if self.recon_size is None:
+            self.recon_size = round(self.model.realA.shape[-1] / np.sqrt(2))
+        images += batch_reconstruct(torch.stack(images, dim=0), self.recon_size)
         titles = ['Target', 'Input', 'Output']
         for i, img in enumerate(images):
             plt.subplot(2, 3, i + 1)
@@ -95,19 +111,19 @@ class BaseGANVisualizer:
         plt.subplot(1, 3, 1)
         plt.axis("off")
         plt.title("Target Outputs")
-        plt.imshow(np.transpose(utils.make_grid(self.model.realB.detach(), padding=5, normalize=True, nrow=4).cpu(),
+        plt.imshow(np.transpose(tv_utils.make_grid(self.model.realB.detach(), padding=5, normalize=True, nrow=4).cpu(),
                                 (1, 2, 0)), cmap='gray')
         # Plot the real inputs (i.e. centre sinograms)
         plt.subplot(1, 3, 2)
         plt.axis("off")
         plt.title("Real Inputs")
-        plt.imshow(np.transpose(utils.make_grid(self.model.realA.detach(), padding=5, normalize=True, nrow=4).cpu(),
+        plt.imshow(np.transpose(tv_utils.make_grid(self.model.realA.detach(), padding=5, normalize=True, nrow=4).cpu(),
                                 (1, 2, 0)), cmap='gray')
         # Plot the fake outputs (i.e. generated sinograms)
         plt.subplot(1, 3, 3)
         plt.axis("off")
         plt.title("Generated Outputs")
-        plt.imshow(np.transpose(utils.make_grid(self.model.fakeB.detach(), padding=5, normalize=True, nrow=4).cpu(),
+        plt.imshow(np.transpose(tv_utils.make_grid(self.model.fakeB.detach(), padding=5, normalize=True, nrow=4).cpu(),
                                 (1, 2, 0)), cmap='gray')
         plt.show(block=self.block)
 
@@ -115,25 +131,27 @@ class BaseGANVisualizer:
         """Function to plot a batch of *reconstructed* real inputs, target outputs and generated outputs.
         Before running this function, at least one train or test pass must have been made."""
         # Reconstruct all
-        input_recon = batch_reconstruct(self.model.realA.detach().cpu(), self.size)
-        target_recon = batch_reconstruct(self.model.realB.detach().cpu(), self.size)
-        fake_recon = batch_reconstruct(self.model.fakeB.detach().cpu(), self.size)
+        if self.recon_size is None:
+            self.recon_size = round(self.model.realA.shape[-1] / np.sqrt(2))
+        input_recon = batch_reconstruct(self.model.realA.detach().cpu(), self.recon_size)
+        target_recon = batch_reconstruct(self.model.realB.detach().cpu(), self.recon_size)
+        fake_recon = batch_reconstruct(self.model.fakeB.detach().cpu(), self.recon_size)
         # Plot clean vs centre vs generated reconstructions
         plt.figure(figsize=(8, 8))
         plt.subplot(131)
         plt.axis("off")
         plt.title("Targets")
-        plt.imshow(np.transpose(utils.make_grid(target_recon, normalize=True, nrow=4, scale_each=True).cpu(), (1, 2, 0)),
+        plt.imshow(np.transpose(tv_utils.make_grid(target_recon, normalize=True, nrow=4, scale_each=True).cpu(), (1, 2, 0)),
                    cmap='gray')
         plt.subplot(132)
         plt.axis("off")
         plt.title("Inputs")
-        plt.imshow(np.transpose(utils.make_grid(input_recon, normalize=True, nrow=4, scale_each=True).cpu(), (1, 2, 0)),
+        plt.imshow(np.transpose(tv_utils.make_grid(input_recon, normalize=True, nrow=4, scale_each=True).cpu(), (1, 2, 0)),
                    cmap='gray')
         plt.subplot(133)
         plt.axis("off")
         plt.title("Generated")
-        plt.imshow(np.transpose(utils.make_grid(fake_recon, normalize=True, nrow=4, scale_each=True).cpu(), (1, 2, 0)),
+        plt.imshow(np.transpose(tv_utils.make_grid(fake_recon, normalize=True, nrow=4, scale_each=True).cpu(), (1, 2, 0)),
                    cmap='gray')
         plt.show(block=self.block)
 
