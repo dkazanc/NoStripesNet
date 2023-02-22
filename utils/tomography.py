@@ -10,6 +10,21 @@ from .misc import Rescale
 
 
 def reconstruct(sinogram, angles=None, comm=MPI.COMM_WORLD, ncore=None):
+    """Reconstruct a sinogram. Reconstruction algorithm used is gridrec.
+    Parameters:
+        sinogram : nd.ndarray or torch.Tensor
+            Sinogram to reconstruct.
+        angles : np.ndarray
+            Angles to reconstruct with. Default is evenly distributed radians
+            between 0 and pi, with length the same as first dimension of
+            sinogram.
+        comm : MPI.Comm
+            MPI Communicator for parallel execution.
+            Default is MPI.COMM_WORLD
+        ncore : int
+            Number of cores that will be assigned to jobs.
+            Default is None.
+    """
     if type(sinogram) == np.ndarray or type(sinogram) == torch.Tensor:
         sino_np = np.asarray(sinogram)
         if sino_np.ndim == 2:
@@ -17,7 +32,8 @@ def reconstruct(sinogram, angles=None, comm=MPI.COMM_WORLD, ncore=None):
         elif sino_np.ndim == 3:
             sino_np = np.swapaxes(sino_np, 0, 1)
     else:
-        raise TypeError(f"Type of item should be one of ['np.ndarray', 'torch.Tensor']. "
+        raise TypeError(f"Type of item should be one of "
+                        f"['np.ndarray', 'torch.Tensor']. "
                         f"Instead got '{type(sinogram)}'")
     if angles is None:
         angles = tp.angles(sino_np.shape[0])
@@ -52,18 +68,37 @@ def reconstruct(sinogram, angles=None, comm=MPI.COMM_WORLD, ncore=None):
 
 
 def getFlatsDarks(file, tomo_params, shape=None, comm=MPI.COMM_WORLD):
-    """Load flats and darks."""
+    """Load flats and darks from an HDF file.
+    Parameters:
+        file : str
+            Path to HDF file.
+        tomo_params : dict
+            Dictionary that contains loading parameters. Same convention
+            as an HTTomo yaml pipeline file.
+            Must contain the following keys:
+                {'data_path', 'image_key_path', 'dimension', 'preview',
+                'pad'}
+            shape : Tuple
+                Shape of the data. If not provided, will be retrieved from
+                the HDF file.
+        comm : MPI.Comm
+            MPI Communicator for parallel execution.
+            Default is MPI.COMM_WORLD
+    """
     if shape is None:
         with File(file, "r", driver="mpio", comm=comm) as f:
             shape = f[tomo_params['data_path']].shape
-    data_indices = load.get_data_indices(file, tomo_params['image_key_path'], comm=comm)
-    darks, flats = load.get_darks_flats(file,
-                                        tomo_params['data_path'],
-                                        tomo_params['image_key_path'],
-                                        tomo_params['dimension'],
-                                        tomo_params['pad'],
-                                        _parse_preview(tomo_params['preview'], shape, data_indices),
-                                        comm)
+    data_indices = load.get_data_indices(file, tomo_params['image_key_path'],
+                                         comm=comm)
+    darks, flats = load.get_darks_flats(
+        file,
+        tomo_params['data_path'],
+        tomo_params['image_key_path'],
+        tomo_params['dimension'],
+        tomo_params['pad'],
+        _parse_preview(tomo_params['preview'], shape, data_indices),
+        comm
+    )
     return np.asarray(flats), np.asarray(darks)
 
 

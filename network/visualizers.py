@@ -7,7 +7,7 @@ from torchvision import utils as tv_utils
 from .datasets import *
 from .models.gans import *
 from utils.tomography import reconstruct, getRectools2D
-from utils.metrics import toNumpy
+from utils.misc import toNumpy
 
 
 def batch_reconstruct(batch, size, recon_fn='tomopy', device='cpu'):
