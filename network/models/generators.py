@@ -1,29 +1,45 @@
-# Isola, P., Zhu, J.Y., Zhou, T. and Efros, A.A., 2016. Image-to-image translation with conditional adversarial
-# networks. In Proceedings of the IEEE conference on computer vision and pattern recognition (pp. 1125-1134).
+"""The generators in this module have been inspired by those described in
+    Isola, P., Zhu, J.Y., Zhou, T. and Efros, A.A., 2016. Image-to-image
+    translation with conditional adversarial networks. In Proceedings of the
+    IEEE conference on computer vision and pattern recognition (pp. 1125-1134).
+And the following GitHub repositories:
+    - https://github.com/phillipi/pix2pix
+    - https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix
+"""
 
 import torch
 import torch.nn as nn
 
 
 class BaseUNet(nn.Module):
-    """Architecture inspired by the image-to-image U-Net in (Isola et al. 2016).
-            - Down-Convs have Leaky ReLus with slope = 0.2
-            - Up-Convs have non-leaky (i.e. normal) ReLus
-            - No pooling layers of any kind
-            - Batch Norm on every layer apart from the first & last
-            - Dropout in the first 3 layers of the decoder
-            - Final activation function is Tanh
-
-        Code inspired by the accompanying GitHub repos:
-            - https://github.com/phillipi/pix2pix
-            - https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix"""
+    """Basic Generator used by most GAN models.
+    Takes one 402 x 362 image as input, and outputs one 402 x 362 image.
+    The architecture is inspired by the U-Net described in Isola et al. 2016.
+    It consists of a 7-layer decoder, a 7-layer encoder, and skip connections
+    between the two.
+    Each decoder layer has the following structure:
+        1. 2D Convolution
+        2. Batch Normalization
+        3. Leaky ReLU
+    The first decoder layer has no batch normalization, and the last decoder
+    layer has no batch normalization and a non-leaky ReLU.
+    Each encoder layer has the following structure:
+        1. 2D Tranposed Convolution
+        2. Batch Normalization
+        3. (Non-Leaky) ReLU
+    The first 3 encoder layers also contain dropout with p=0.5 between (2)
+    and (3).
+    The final activation function is Tanh.
+    """
     def __init__(self):
         super(BaseUNet, self).__init__()
 
         filters = 64
 
         # Input (1, 402, 362) -> Output (64, 200, 180)
-        self.down1 = nn.Conv2d(1, filters, kernel_size=(4, 4), stride=(2, 2), padding=(0, 0), bias=False)
+        self.down1 = nn.Conv2d(1, filters,
+                               kernel_size=(4, 4), stride=(2, 2),
+                               padding=(0, 0), bias=False)
 
         # Input (64, 200, 180) -> Output (128, 99, 89)
         self.down2 = self.down(filters, filters * 2)
@@ -73,19 +89,24 @@ class BaseUNet(nn.Module):
     @staticmethod
     def down(in_c, out_c, batchNorm=True, k=(4, 4), s=(2, 2), p=(0, 0)):
         if batchNorm:
-            batchNorm = nn.BatchNorm2d(out_c, eps=0.001, track_running_stats=False)
+            batchNorm = nn.BatchNorm2d(out_c, eps=0.001,
+                                       track_running_stats=False)
         else:
             batchNorm = nn.Identity()
         return nn.Sequential(
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(in_c, out_c, kernel_size=k, stride=s, padding=p, bias=False),
+            nn.Conv2d(in_c, out_c,
+                      kernel_size=k, stride=s,
+                      padding=p, bias=False),
             batchNorm
         )
 
     @staticmethod
-    def up(in_c, out_c, batchNorm=True, dropout=False, k=(4, 4), s=(2, 2), p=(0, 0)):
+    def up(in_c, out_c, batchNorm=True, dropout=False, k=(4, 4), s=(2, 2),
+           p=(0, 0)):
         if batchNorm:
-            batchNorm = nn.BatchNorm2d(out_c, eps=0.001, track_running_stats=False)
+            batchNorm = nn.BatchNorm2d(out_c, eps=0.001,
+                                       track_running_stats=False)
         else:
             batchNorm = nn.Identity()
         if dropout:
@@ -94,7 +115,9 @@ class BaseUNet(nn.Module):
             dropout = nn.Identity()
         return nn.Sequential(
             nn.ReLU(inplace=True),
-            nn.ConvTranspose2d(in_c, out_c, kernel_size=k, stride=s, padding=p, bias=False),
+            nn.ConvTranspose2d(in_c, out_c,
+                               kernel_size=k, stride=s,
+                               padding=p, bias=False),
             batchNorm,
             dropout
         )
@@ -136,13 +159,37 @@ class BaseUNet(nn.Module):
 
 
 class WindowUNet(nn.Module):
+    """Generator used by GANs training on windowed sinograms.
+    Assumes window width = 25, and cannot scale to different widths.
+    Takes one 402 x 25 image as input, and outputs one 402 x 25 image.
+    The architecture is inspired by the U-Net described in Isola et al. 2016.
+    It consists of an 8-layer decoder, an 8-layer encoder, and skip connections
+    between the two.
+    Each decoder layer has the following structure:
+        1. 2D Convolution
+        2. Batch Normalization
+        3. Leaky ReLU
+    The first decoder layer has no batch normalization, and the last decoder
+    layer has no batch normalization and a non-leaky ReLU.
+    Each encoder layer has the following structure:
+        1. 2D Tranposed Convolution
+        2. Batch Normalization
+        3. (Non-Leaky) ReLU
+    The first 3 encoder layers also contain dropout with p=0.5 between (2)
+    and (3).
+    The final activation function is Tanh.
+    Training on windowed sinograms did not give great results, and so this
+    class might be deprecated soon.
+    """
     def __init__(self):
         super(WindowUNet, self).__init__()
 
         filters = 32
 
         # Input (1, 402, 25) -> Output (32, 402, 22)
-        self.down1 = nn.Conv2d(1, filters, kernel_size=(1, 4), stride=(1, 1), padding=(0, 0))
+        self.down1 = nn.Conv2d(1, filters,
+                               kernel_size=(1, 4), stride=(1, 1),
+                               padding=(0, 0))
 
         # Input (32, 402, 22) -> Output (64, 200, 19)
         self.down2 = self.down(filters, filters*2)
@@ -208,9 +255,11 @@ class WindowUNet(nn.Module):
         )
 
     @staticmethod
-    def up(in_c, out_c, batchNorm=True, dropout=False, k=(4, 4), s=(2, 1), p=(0, 0)):
+    def up(in_c, out_c, batchNorm=True, dropout=False, k=(4, 4), s=(2, 1),
+           p=(0, 0)):
         if batchNorm:
-            batchNorm = nn.BatchNorm2d(out_c, eps=0.001, track_running_stats=False)
+            batchNorm = nn.BatchNorm2d(out_c, eps=0.001,
+                                       track_running_stats=False)
         else:
             batchNorm = nn.Identity()
         if dropout:
@@ -219,13 +268,16 @@ class WindowUNet(nn.Module):
             dropout = nn.Identity()
         return nn.Sequential(
             nn.ReLU(inplace=True),
-            nn.ConvTranspose2d(in_c, out_c, kernel_size=k, stride=s, padding=p),
+            nn.ConvTranspose2d(in_c, out_c,
+                               kernel_size=k, stride=s, padding=p),
             batchNorm,
             dropout
         )
 
     def forward(self, x):
-        if x.shape[-1] != 25:
+        # Width of sinogram may not always be a multiple of 25,
+        # so we must pad any windows with width < 25
+        if x.shape[-1] < 25:
             down0_out = nn.ReplicationPad2d((0, 25 - x.shape[-1], 0, 0))(x)
         else:
             down0_out = nn.Identity()(x)
@@ -267,5 +319,3 @@ class WindowUNet(nn.Module):
         final_out = self.final(up8_out)
 
         return final_out
-
-

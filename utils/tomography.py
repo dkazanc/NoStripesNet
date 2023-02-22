@@ -5,6 +5,7 @@ from httomo.data.hdf._utils import load
 from httomo.data.hdf.loaders import _parse_preview
 from mpi4py import MPI
 from h5py import File
+from tomobar.methodsDIR import RecToolsDIR
 from .misc import Rescale
 
 
@@ -64,3 +65,24 @@ def getFlatsDarks(file, tomo_params, shape=None, comm=MPI.COMM_WORLD):
                                         _parse_preview(tomo_params['preview'], shape, data_indices),
                                         comm)
     return np.asarray(flats), np.asarray(darks)
+
+
+def getRectools2D(size, device='cpu'):
+    """Get reconstruction tools from tomobar.
+    Parameters:
+        size : int
+            Height of sinogram.
+        device : str
+            Device to use when reconstructing.
+    """
+    total_angles = int(0.5 * np.pi * size)
+    angles = np.linspace(0, 179.9, total_angles, dtype='float32')
+    angles_rad = angles * (np.pi / 180.0)
+    p = int(np.sqrt(2) * size)
+    rectools = RecToolsDIR(DetectorsDimH=p,
+                           DetectorsDimV=None,
+                           CenterRotOffset=0.0,
+                           AnglesVec=angles_rad,
+                           ObjSize=size,
+                           device_projector=device)
+    return rectools

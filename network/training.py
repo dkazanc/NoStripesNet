@@ -15,11 +15,24 @@ from .datasets import PairedWindowDataset, BaseDataset, PairedFullDataset, Maske
 from utils import Rescale
 
 
-# In the future this should be in NoStripesNet/simulator/data_io.py
-# But that would cause a lot of relative import errors so for now it's staying here
 def saveModel(model, epoch, save_dir, save_name):
+    """Save a model to disk as a .tar file.
+    Saves the following parameters: epoch, model state, optimizer state & loss.
+    Parameters:
+        model : BaseGAN
+            Model to save. Must be a GAN containing both generator and
+            discriminator.
+        epoch : int
+            Last training epoch the model reached.
+        save_dir : str
+            Directory where model will be saved.
+        save_name : str
+            Name model will be saved with. Will be appended by `epoch`.
+            i.e. <save_name>_<epoch>.tar
+    """
     if save_dir is None or save_name is None:
-        raise ValueError("If saving a model, both save directory and save name should be passed as arguments.")
+        raise ValueError("If saving a model, both save directory and save "
+                         "name should be passed as arguments.")
     torch.save({'epoch': epoch,
                 'gen_state_dict': model.gen.state_dict(),
                 'gen_optimizer_state_dict': model.optimizerG.state_dict(),
@@ -31,6 +44,19 @@ def saveModel(model, epoch, save_dir, save_name):
 
 
 def createModelParams(model, path, device):
+    """Initialise parameters for a model.
+    Supports either training a brand new model from scratch,
+    or loading a model from disk and using the parameters from that.
+    Parameters:
+            model : BaseGAN
+                Model in which to initialise parameters
+            path : str
+                Path to a pre-trained model on disk. If None, parameters will
+                be initialised according to the `init_weights` function from
+                ./models/gans.py
+            device : torch.device
+                Device to load parameters on to.
+    """
     if path is None:
         print(f"Training new model from scratch.")
         model.gen.apply(init_weights)
@@ -40,15 +66,26 @@ def createModelParams(model, path, device):
         print(f"Loading model from '{path}'")
         checkpoint = torch.load(path, map_location=device)
         model.gen.load_state_dict(checkpoint['gen_state_dict'])
-        model.optimizerG.load_state_dict(checkpoint['gen_optimizer_state_dict'])
+        model.optimizerG.load_state_dict(
+            checkpoint['gen_optimizer_state_dict']
+        )
         model.lossG = checkpoint['gen_loss']
         model.disc.load_state_dict(checkpoint['disc_state_dict'])
-        model.optimizerD.load_state_dict(checkpoint['disc_optimizer_state_dict'])
+        model.optimizerD.load_state_dict(
+            checkpoint['disc_optimizer_state_dict']
+        )
         model.lossD = checkpoint['disc_loss']
         return checkpoint['epoch']
 
 
 def getTrainingData(dataset, data):
+    """Deconstruct output from a Dataset class into a pair of input & target.
+    Parameters:
+            dataset : torch.utils.data.Dataset
+                Dataset class from which the data has come.
+            data : Tuple[torch.Tensor]
+                Tuple containing raw output from the dataset.
+    """
     if type(dataset) == BaseDataset:
         clean, *shifts = data
         centre = shifts[len(shifts) // 2]
@@ -68,6 +105,18 @@ def getTrainingData(dataset, data):
 
 
 def getVisualizer(model, dataset, size, block=True):
+    """Get the correct visualizer class for a given Dataset.
+    Parameters:
+        model : BaseGAN
+            GAN to visualize data from
+        dataset : torch.utils.data.Dataset
+            Dataset class to visualize data from
+        size : int
+            Size of sinogram
+        block : bool
+            Whether or not plots should pause execution of code.
+            Default is True.
+    """
     if type(dataset) == BaseDataset:
         return BaseGANVisualizer(model, dataset, size, block)
     elif type(dataset) == PairedWindowDataset:
@@ -80,8 +129,34 @@ def getVisualizer(model, dataset, size, block=True):
         raise ValueError(f"Dataset '{dataset}' not recognised.")
 
 
-def train(model, dataloader, epochs, save_every_epoch=False, save_name=None, save_dir=None, start_epoch=0, verbose=True,
-          force=False):
+def train(model, dataloader, epochs, save_every_epoch=False, save_name=None,
+          save_dir=None, start_epoch=0, verbose=True, force=False):
+    """Train a model.
+    Parameters:
+        model : torch.nn.Module
+            Model to train
+        dataloader : torch.utils.data.DataLoader
+            DataLoader instance from which to load data
+        epochs : int
+            Number of epochs for which to train the model
+        save_every_epoch : bool
+            Whether the model should be saved to disk after the completion of
+            each epoch. Default is False.
+            If True, `save_name` and `save_dir` must also be specified.
+        save_name : str
+            Name with which to save model. Default is None.
+        save_dir : str
+            Directory to save model to. Default is None.
+        start_epoch : int
+            If a model has been pre-trained, and you want to continue training
+            where it left off, this can be set to the last training epoch.
+            Default is 0.
+        verbose : bool
+            Print out some extra information.
+        force : bool
+            Whether execution should continue without waiting for plots to be
+            closed. Default is False.
+    """
     if isinstance(dataloader.dataset, Subset):
         dataset = dataloader.dataset.dataset
     else:
@@ -90,7 +165,10 @@ def train(model, dataloader, epochs, save_every_epoch=False, save_name=None, sav
     num_batches = len(dataloader)
     vis = getVisualizer(model, dataset, dataset.size, block=not force)
     start_time = datetime.now()
-    print(f"Training has begun. Epochs: {epochs}, Batches: {num_batches}, Steps/batch: {dataloader.batch_size}")
+    print(f"Training has begun. "
+          f"Epochs: {epochs}, "
+          f"Batches: {num_batches}, "
+          f"Steps/batch: {dataloader.batch_size}")
     for epoch in range(start_epoch, epochs):
         print(f"Epoch [{epoch + 1}/{epochs}]: Training model...")
         dataloader.dataset.setMode('train')
@@ -104,11 +182,16 @@ def train(model, dataloader, epochs, save_every_epoch=False, save_name=None, sav
             model.run_passes()
             # Print out some useful info
             if verbose:
-                print(f"\tEpoch [{epoch + 1}/{epochs}], Batch [{i + 1}/{num_batches}], Loss_D: {model.lossD.item():2.5f}, "
-                      f"Loss_G: {model.lossG.item():2.5f}, D(x): {model.D_x:.5f}, D(G(x)): {model.D_G_x1:.5f} / {model.D_G_x2:.5f}")
+                print(f"\tEpoch [{epoch + 1}/{epochs}], "
+                      f"Batch [{i + 1}/{num_batches}], "
+                      f"Loss_D: {model.lossD.item():2.5f}, "
+                      f"Loss_G: {model.lossG.item():2.5f}, "
+                      f"D(x): {model.D_x:.5f}, "
+                      f"D(G(x)): {model.D_G_x1:.5f} / {model.D_G_x2:.5f}")
 
         # At the end of every epoch, run through validate dataset
-        print(f"Epoch [{epoch + 1}/{epochs}]: Training finished. Validating model...")
+        print(f"Epoch [{epoch + 1}/{epochs}]: "
+              f"Training finished. Validating model...")
         dataloader.dataset.setMode('validate')
         model.setMode('validate')
         num_batches = len(dataloader)
@@ -122,12 +205,17 @@ def train(model, dataloader, epochs, save_every_epoch=False, save_name=None, sav
             model.run_passes()
             # Print out some useful info
             if verbose:
-                print(f"\tEpoch [{epoch + 1}/{epochs}], Batch [{i + 1}/{num_batches}], Loss_D: {model.lossD.item():2.5f}, "
-                      f"Loss_G: {model.lossG.item():2.5f}, D(x): {model.D_x:.5f}, D(G(x)): {model.D_G_x1:.5f} / {model.D_G_x2:.5f}")
+                print(f"\tEpoch [{epoch + 1}/{epochs}], "
+                      f"Batch [{i + 1}/{num_batches}], "
+                      f"Loss_D: {model.lossD.item():2.5f}, "
+                      f"Loss_G: {model.lossG.item():2.5f}, "
+                      f"D(x): {model.D_x:.5f}, "
+                      f"D(G(x)): {model.D_G_x1:.5f} / {model.D_G_x2:.5f}")
             # Collate validation losses
             validation_lossesG[i] = model.lossG.item()
             validation_lossesD[i] = model.lossD.item()
-        # Step scheduler with median of all validation losses (avoids outliers at start of validation)
+        # Step scheduler with median of all validation losses
+        # (avoids outliers at start of validation)
         model.schedulerG.step(np.median(validation_lossesG))
         model.schedulerD.step(np.median(validation_lossesD))
         print(f"Epoch [{epoch + 1}/{epochs}]: Validation finished.")
@@ -135,7 +223,8 @@ def train(model, dataloader, epochs, save_every_epoch=False, save_name=None, sav
         # At the end of every epoch, save model state
         if save_every_epoch and save_dir is not None and save_name is not None:
             saveModel(model, epoch, save_dir, save_name)
-            print(f"Epoch [{epoch+1}/{epochs}]: Model '{save_name}_{epoch}' saved to '{save_dir}'")
+            print(f"Epoch [{epoch+1}/{epochs}]: "
+                  f"Model '{save_name}_{epoch}' saved to '{save_dir}'")
         else:
             if verbose:
                 print(f"Epoch [{epoch+1}/{epochs}]: Model not saved.")
@@ -147,12 +236,15 @@ def train(model, dataloader, epochs, save_every_epoch=False, save_name=None, sav
         vis.plot_one()
         vis.plot_real_vs_fake_batch()
         vis.plot_real_vs_fake_recon()
-    except OSError as e:  # if plotting causes OoM, don't crash so model can still be saved
+    except OSError as e:
+        # if plotting causes OoM, don't crash so model can still be saved
         print(e)
     # Save models if user desires and save_every_epoch is False
-    if not save_every_epoch and (force or input("Save model? (y/[n]): ") == 'y'):
+    if not save_every_epoch and (force
+                                 or input("Save model? (y/[n]): ") == 'y'):
         saveModel(model, epochs, save_dir, save_name)
-        print(f"Training finished: Model '{save_name}_{epochs}' saved to '{save_dir}'")
+        print(f"Training finished: "
+              f"Model '{save_name}_{epochs}' saved to '{save_dir}'")
     else:
         print("Training finished: Model not saved.")
 
@@ -162,38 +254,52 @@ def get_args():
     parser.add_argument('-r', "--root", type=str, default='./data',
                         help="Path to input data used in network")
     parser.add_argument('-m', "--model", type=str, default='base',
-                        help="Type of model to train. Must be one of ['window', 'base', 'full', 'mask', 'simple].")
+                        help="Type of model to train. Must be one of "
+                             "['window', 'base', 'full', 'mask', 'simple].")
     parser.add_argument('-N', "--size", type=int, default=256,
-                        help="Size of image generated (cubic). Also height of sinogram")
+                        help="Size of image generated (cubic). "
+                             "Also height of sinogram")
     parser.add_argument('-s', "--shifts", type=int, default=5,
-                        help="Number of vertical shifts applied to each sample in data generation")
+                        help="Number of vertical shifts applied to each "
+                             "sample in data generation")
     parser.add_argument('-w', "--window-width", type=int, default=25,
                         help="Width of windows that sinograms are split into")
     parser.add_argument('-e', "--epochs", type=int, default=1,
-                        help="Number of epochs (i.e. total passes through the dataset)")
+                        help="Number of epochs "
+                             "(i.e. total passes through the dataset)")
     parser.add_argument('-l', "--learning-rate", type=float, default=0.0002,
                         help="Learning rate of the network")
-    parser.add_argument('-b', "--betas", type=float, default=[0.5, 0.999], nargs=2,
-                        help="Values of the beta parameters used in the Adam optimizer")
+    parser.add_argument('-b', "--betas", type=float, default=[0.5, 0.999],
+                        nargs=2,
+                        help="Values of the beta parameters used in the Adam "
+                             "optimizer")
     parser.add_argument('-B', "--batch-size", type=int, default=16,
-                        help="Batch size used for loading data and for minibatches for Adam optimizer")
+                        help="Batch size used for loading data "
+                             "and for minibatches for Adam optimizer")
     parser.add_argument('--lambda', type=float, default=100, dest='lambdal1',
-                        help="Parameter by which L1 loss in the generator is multiplied")
+                        help="Parameter by which L1 loss in the generator is "
+                             "multiplied")
     parser.add_argument('-d', "--save-dir", type=str, default=None,
-                        help="Directory to save models to once training has finished.")
+                        help="Directory to save models to once training has "
+                             "finished.")
     parser.add_argument('-f', "--model-file", type=str, default=None,
-                        help="Location of model on disk. If specified, this will override other hyperparameters and "
-                             "load a pre-trained model from disk.")
+                        help="Location of model on disk. If specified, this "
+                             "will override other hyperparameters and load a "
+                             "pre-trained model from disk.")
     parser.add_argument("--tvt", type=int, default=[3, 1, 1], nargs=3,
                         help="Train/Validate/Test split, entered as a ratio")
-    parser.add_argument("--lsgan", action="store_true", help="Train an LSGAN, rather than a normal GAN.")
+    parser.add_argument("--lsgan", action="store_true",
+                        help="Train an LSGAN, rather than a normal GAN.")
     parser.add_argument("--subset", type=int, default=None,
                         help="Option to use a subset of the full dataset")
     parser.add_argument("--force", action="store_true",
-                        help="When given, the model will not wait for any plots to close, will save the loss graph,"
-                             " and will skip any user inputs (pass 'y' to all)")
-    parser.add_argument("--save-every-epoch", action="store_true", help="Save model every epoch")
-    parser.add_argument('-v', "--verbose", action="store_true", help="Print some extra information when running")
+                        help="When given, the model will not wait for any "
+                             "plots to close, will save the loss graph, "
+                             "and will skip any user inputs (pass 'y' to all)")
+    parser.add_argument("--save-every-epoch", action="store_true",
+                        help="Save model every epoch")
+    parser.add_argument('-v', "--verbose", action="store_true",
+                        help="Print some extra information when running")
     return parser.parse_args()
 
 
@@ -236,42 +342,55 @@ if __name__ == '__main__':
     gen = BaseUNet()
     if args.model == 'base':
         # Create dataset
-        dataset = BaseDataset(root=dataroot, mode='train', tvt=tvt, size=size, shifts=num_shifts,
-                              transform=transform)
-        model = BaseGAN(gen, disc, mode='train', learning_rate=learning_rate, betas=betas, lambdaL1=lambdal1,
-                        lsgan=lsgan, device=device)
+        dataset = BaseDataset(root=dataroot, mode='train', tvt=tvt, size=size,
+                              shifts=num_shifts, transform=transform)
+        model = BaseGAN(gen, disc, mode='train', learning_rate=learning_rate,
+                        betas=betas, lambdaL1=lambdal1, lsgan=lsgan,
+                        device=device)
     elif args.model == 'window':
         # Create dataset
-        dataset = PairedWindowDataset(root=dataroot, mode='train', tvt=tvt, size=size, shifts=num_shifts,
-                                      windowWidth=windowWidth, transform=transform)
+        dataset = PairedWindowDataset(root=dataroot, mode='train', tvt=tvt,
+                                      size=size, shifts=num_shifts,
+                                      windowWidth=windowWidth,
+                                      transform=transform)
         # Create models
         disc = WindowDiscriminator()
         gen = WindowUNet()
-        model = WindowGAN(windowWidth, gen, disc, mode='train', learning_rate=learning_rate, betas=betas,
+        model = WindowGAN(windowWidth, gen, disc, mode='train',
+                          learning_rate=learning_rate, betas=betas,
                           lambdaL1=lambdal1, lsgan=lsgan, device=device)
     elif args.model == 'full':
         # Create dataset
-        dataset = PairedFullDataset(root=dataroot, mode='train', tvt=tvt, size=size, shifts=num_shifts,
-                                    windowWidth=windowWidth, transform=transform)
-        model = BaseGAN(gen, disc, mode='train', learning_rate=learning_rate, betas=betas, lambdaL1=lambdal1,
-                        lsgan=lsgan, device=device)
+        dataset = PairedFullDataset(root=dataroot, mode='train', tvt=tvt,
+                                    size=size, shifts=num_shifts,
+                                    windowWidth=windowWidth,
+                                    transform=transform)
+        model = BaseGAN(gen, disc, mode='train', learning_rate=learning_rate,
+                        betas=betas, lambdaL1=lambdal1, lsgan=lsgan,
+                        device=device)
     elif args.model == 'mask' or args.model == 'simple':
         # Create dataset
-        dataset = MaskedDataset(root=dataroot, mode='train', tvt=tvt, size=size, shifts=num_shifts, transform=transform,
+        dataset = MaskedDataset(root=dataroot, mode='train', tvt=tvt,
+                                size=size, shifts=num_shifts,
+                                transform=transform,
                                 simple=args.model=='simple')
-        model = MaskedGAN(gen, disc, mode='train', learning_rate=learning_rate, betas=betas, lambdaL1=lambdal1,
-                          lsgan=lsgan, device=device)
+        model = MaskedGAN(gen, disc, mode='train', learning_rate=learning_rate,
+                          betas=betas, lambdaL1=lambdal1, lsgan=lsgan,
+                          device=device)
     else:
-        raise ValueError(f"Argument '--model' should be one of ['window', 'base', 'full', 'mask', 'simple]. "
+        raise ValueError(f"Argument '--model' should be one of "
+                         f"['window', 'base', 'full', 'mask', 'simple]. "
                          f"Instead got '{args.model}'")
 
     # Train
     start_epoch = createModelParams(model, model_file, device)
     if save_every_epoch and model_save_dir is None:
-        warnings.warn("Argument --save-every-epoch is True, but a save directory has not been specified. "
+        warnings.warn("Argument --save-every-epoch is True, "
+                      "but a save directory has not been specified. "
                       "Models will not be saved at all!", RuntimeWarning)
     if sbst_size is not None:
         dataset = RandomSubset(dataset, sbst_size)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-    train(model, dataloader, epochs, save_every_epoch=save_every_epoch, save_dir=model_save_dir, save_name=args.model,
+    train(model, dataloader, epochs, save_every_epoch=save_every_epoch,
+          save_dir=model_save_dir, save_name=args.model,
           start_epoch=start_epoch, verbose=verbose, force=force)
