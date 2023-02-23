@@ -2,24 +2,59 @@ import argparse
 import os
 import yaml
 from .data_simulator import generateSample, simulateFlats, simulateStripes
-from .realdata_loader import convertHDFtoTIFF, createDynamicDataset, savePairedData, saveRawData
+from .realdata_loader import convertHDFtoTIFF, createDynamicDataset, \
+    savePairedData, saveRawData
 
 
 def makeDirectories(dataDir, sampleNo, shifts, mode):
-    """Function to make sub-directories for data generation.
-    These will have the following structure:
-        .
-        ├── data
-        │   └── <sampleNo>
-        │       ├── clean
-        │       ├── shift00
-        │       ├── shift01
-                ...
-    IMPORTANT: This function assumes it is being run from: NoStripesNet/
-               Therefore it is important that this function is executed in the correct location from the terminal.
+    """Make sub-directories for data generation.
+    Sub-directories created depend on `mode`.
+    Parameters:
+        dataDir : str
+            Root directory under which all sub-directories will be created.
+        sampleNo : int
+            Sample Number. If mode is one of ['simple', 'complex', 'raw'],
+            a sub-directory named after this parameter will be created.
+        shifts : int
+            Number of vertical shifts in data when scanned. If mode is one of
+            ['simple', 'complex', 'raw'], a sub-directory will be created for
+            each and every shift.
+        mode : str
+            The mode that determines how sub-directories will be created.
+            Must be one of:
+                ['simple', 'complex', 'raw']:
+                    For synthetic data ('simple' or 'complex'), or real data
+                    loaded directly from an HDF file without any pre- or post-
+                    processing ('raw').
+                    Creates the following structure:
+                        <dataDir>
+                        ├── <sampleNo>
+                        │   ├── clean
+                        │   ├── shift00
+                        │   ├── shift01
+                        ...
+                'real':
+                    For real life data that simulates artifacts in clean
+                    sinograms, and creates clean sinograms for sinograms with
+                    real artifacts.
+                    Creates the following structure:
+                        <dataDir>
+                            ├── real_artifacts
+                            └── fake_artifacts
+                'dynamic':
+                    For dynamic tomographic scans. All "frames" of a dynamic
+                    scan are stored under one directory.
+                    Creates the following structure:
+                        <dataDir>
+                            └── dynamic
+    Returns:
+        str
+            The main root of the created directories. For modes ['simple',
+            'complex', 'raw], this is '<dataDir>/<sampleNo>'.
+            For modes ['real', 'dynamic'], this is <dataDir>.
     """
     mainPath = dataDir
-    if mode in ['simple, complex', 'raw']:
+    if mode in ['simple', 'complex', 'raw']:
         mainPath = os.path.join(dataDir, str(sampleNo).zfill(4))
         os.makedirs(mainPath, exist_ok=True)
         cleanPath = os.path.join(mainPath, 'clean')
@@ -43,33 +78,51 @@ def makeDirectories(dataDir, sampleNo, shifts, mode):
 
 
 def get_args():
-    parser = argparse.ArgumentParser(description="Create directories and generate samples of data.")
+    parser = argparse.ArgumentParser(description="Create directories and "
+                                                 "generate samples of data.")
     parser.add_argument('-m', '--mode', type=str, default='complex',
-                        help="Type of data to generate. Must be one of: ['simple', 'complex', 'real']")
-    parser.add_argument('-r', '--root', type=str, default=None, help="Data root to generate samples in")
-    parser.add_argument('-S', "--samples", type=int, default=1, help="Number of samples to generate")
-    parser.add_argument('-s', "--shifts", type=int, default=5, help="Number of vertical shifts to apply to each sample")
+                        help="Type of data to generate. Must be one of: "
+                             "['simple', 'complex', 'real', 'raw', 'dynamic']")
+    parser.add_argument('-r', '--root', type=str, default=None,
+                        help="Data root to generate samples in")
+    parser.add_argument('-S', "--samples", type=int, default=1,
+                        help="Number of samples to generate")
+    parser.add_argument('-s', "--shifts", type=int, default=5,
+                        help="Number of vertical shifts for each sample.")
     parser.add_argument('-N', "--size", type=int, default=256,
-                        help="Size of image generated (cubic). Also height of sinogram")
-    parser.add_argument('-o', "--objects", type=int, default=300, help="Number of objects used to generate each sample")
-    parser.add_argument('-I', "--I0", type=int, default=40000, help="Full-beam photon flux intensity")
-    parser.add_argument('-f', "--flatsnum", type=int, default=20, help="Number of the flat fields generated")
-    parser.add_argument('-p', "--shiftstep", type=int, default=2, help="Shift step of a sample in pixels")
+                        help="Size of image generated (cubic). "
+                             "Also height of sinogram")
+    parser.add_argument('-o', "--objects", type=int, default=300,
+                        help="Number of objects used to generate each sample")
+    parser.add_argument('-I', "--I0", type=int, default=40000,
+                        help="Full-beam photon flux intensity")
+    parser.add_argument('-f', "--flatsnum", type=int, default=20,
+                        help="Number of the flat fields generated")
+    parser.add_argument('-p', "--shiftstep", type=int, default=2,
+                        help="Shift step of a sample in pixels")
     parser.add_argument("--start", type=int, default=0,
-                        help="Sample number to begin at (useful if some data has already been generated)")
+                        help="Sample number to begin at (useful if some data "
+                             "has already been generated)")
     parser.add_argument("--pipeline", type=str, default='tomo_pipeline.yml',
-                        help="YAML pipeline file for loading HDF data using HTTomo. (only used when --mode is real)")
-    parser.add_argument("--hdf-file", type=str, default=None, help="HDF file to load real data from."
-                                                                   "(only used when --mode is real)")
-    parser.add_argument('-v', "--verbose", action="store_true", help="Print some extra information when running")
+                        help="YAML pipeline file for loading HDF data using "
+                             "HTTomo. (only used when --mode is one of "
+                             "['real', 'raw', 'dynamic'])")
+    parser.add_argument("--hdf-file", type=str, default=None,
+                        help="HDF file to load real data from. "
+                             "(only used when --mode is one of "
+                             "['real', 'raw', 'dynamic'])")
+    parser.add_argument('-v', "--verbose", action="store_true",
+                        help="Print some extra information when running")
     return parser.parse_args()
 
 
 if __name__ == '__main__':
     current_dir = os.path.basename(os.path.abspath(os.curdir))
     if current_dir != 'NoStripesNet':
-        raise RuntimeError(f"Current Directory should be '.../NoStripesNet/'. Instead got '{current_dir}'.\n"
-                           f"If Current Directory is not 'NoStripesNet', file and directory creation will be incorrect.")
+        raise RuntimeError(f"Current Directory should be '.../NoStripesNet/'. "
+                           f"Instead got '{current_dir}'.\n"
+                           f"If Current Directory is not 'NoStripesNet', "
+                           f"file and directory creation will be incorrect.")
     args = get_args()
     root = args.root
     if root is None:
@@ -86,43 +139,74 @@ if __name__ == '__main__':
     total_samples = start + samples
     for sampleNo in range(start, total_samples):
         if verbose:
-            print(f"Generating sample [{str(sampleNo).zfill(4)} / {str(total_samples-1).zfill(4)}]")
-        mainPath = makeDirectories(root, sampleNo, shifts)
+            print(f"Generating sample [{str(sampleNo).zfill(4)} / "
+                  f"{str(total_samples-1).zfill(4)}]")
+        mainPath = makeDirectories(root, sampleNo, shifts, args.mode)
         if args.mode == 'simple':
             cleanPath = os.path.join(mainPath, 'clean')
-            sample_clean = generateSample(size, objects, output_path=cleanPath, sampleNo=sampleNo, verbose=verbose)
+            sample_clean = generateSample(size,
+                                          objects,
+                                          output_path=cleanPath,
+                                          sampleNo=sampleNo,
+                                          verbose=verbose)
             # TO-DO: Turn all the parameters below into CLI arguments
-            sample_shifts = simulateStripes(sample_clean, percentage=1.2, max_thickness=3.0, intensity=0.25,
-                                            kind='mix', variability=0, output_path=mainPath, sampleNo=sampleNo,
+            sample_shifts = simulateStripes(sample_clean,
+                                            percentage=1.2,
+                                            max_thickness=3.0,
+                                            intensity=0.25,
+                                            kind='mix',
+                                            variability=0,
+                                            output_path=mainPath,
+                                            sampleNo=sampleNo,
                                             verbose=verbose)
         elif args.mode == 'complex':
             # don't save 'clean' sample after it's generated
             # instead save 'clean' sample after flat noise has been added
-            sample_clean = generateSample(size, objects, sampleNo=sampleNo, verbose=verbose)
-            sample_shifts = simulateFlats(sample_clean, size, I0=I0, flatsnum=flatsnum, shifted_positions_no=shifts,
-                                      shift_step=shift_step, output_path=mainPath, sampleNo=sampleNo, verbose=verbose)
+            sample_clean = generateSample(size,
+                                          objects,
+                                          sampleNo=sampleNo,
+                                          verbose=verbose)
+            sample_shifts = simulateFlats(sample_clean,
+                                          size,
+                                          I0=I0,
+                                          flatsnum=flatsnum,
+                                          shifted_positions_no=shifts,
+                                          shift_step=shift_step,
+                                          output_path=mainPath,
+                                          sampleNo=sampleNo,
+                                          verbose=verbose)
         elif args.mode == 'real':
             pipeline = yaml.safe_load(open(args.pipeline))
             if args.hdf_file is None:
                 raise ValueError(
                     "HDF File is None. Please include '--hdf-file' option.")
-            savePairedData(mainPath, args.hdf_file, pipeline,
-                           sampleNo=sampleNo, num_shifts=shifts,
+            savePairedData(mainPath,
+                           args.hdf_file,
+                           pipeline,
+                           sampleNo=sampleNo,
+                           num_shifts=shifts,
                            shiftstep=shift_step)
         elif args.mode == 'raw':
             pipeline = yaml.safe_load(open(args.pipeline))
             if args.hdf_file is None:
                 raise ValueError(
                     "HDF File is None. Please include '--hdf-file' option.")
-            saveRawData(mainPath, args.hdf_file, pipeline, sampleNo=sampleNo,
+            saveRawData(mainPath,
+                        args.hdf_file,
+                        pipeline,
+                        sampleNo=sampleNo,
                         num_shifts=shifts)
         elif args.mode == 'dynamic':
             pipeline = yaml.safe_load(open(args.pipeline))
             if args.hdf_file is None:
                 raise ValueError(
                     "HDF File is None. Please include '--hdf-file' option.")
-            createDynamicDataset(mainPath, args.hdf_file, pipeline,
-                                 sampleNo=sampleNo, sino_size=900)
+            createDynamicDataset(mainPath,
+                                 args.hdf_file,
+                                 pipeline,
+                                 sampleNo=sampleNo,
+                                 sino_size=900)
         else:
-            raise ValueError(f"Option '--mode' should be one of ['simple', 'complex', 'real']. "
+            raise ValueError(f"Option '--mode' should be one of "
+                             f"['simple', 'complex', 'real']. "
                              f"Instead got '{args.mode}'.")
