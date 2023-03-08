@@ -29,7 +29,7 @@ Otherwise, you are limited to just synthetic data.<br>
  - Change the parameters to suit your use case
  - Run the script: `./run_scripts/data_generator.sh`
 
-For more information about the data created & the parameters, see [simulator/data_generator.py](simulator/data_generator.py)
+For more information about the data created & the parameters, see [this description](simulator/README.md).
 
 #### Train a Model
 Finally, train a model on the generated data.<br>
