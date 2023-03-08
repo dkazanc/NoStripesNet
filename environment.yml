@@ -1,0 +1,22 @@
+name: nostripesnet
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python=3.9
+  - cudatoolkit=11.6
+  - numpy
+  - matplotlib-base
+  - scipy
+  - scikit-image
+  - scikit-learn
+  - astra-toolbox::astra-toolbox
+  - tomopy
+  - savu-dep::tomophantom
+  - savu-dep::larix
+  - savu-dep::tomobar
+  - pytorch
+  - torchvision
+  - h5py[build=*openmpi*]
+  - mpi4py
+  - cupy
