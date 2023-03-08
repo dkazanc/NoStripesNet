@@ -208,5 +208,5 @@ if __name__ == '__main__':
                                  sino_size=900)
         else:
             raise ValueError(f"Option '--mode' should be one of "
-                             f"['simple', 'complex', 'real']. "
+                             f"'simple', 'complex', 'real', 'raw', 'dynamic'. "
                              f"Instead got '{args.mode}'.")
