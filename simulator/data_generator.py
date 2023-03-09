@@ -114,6 +114,9 @@ def get_args():
     parser.add_argument("--hdf-file", type=str, default=None,
                         help="Nexus file to load HDF data from. "
                              "Only affects modes 'raw', 'real' and 'dynamic'.")
+    parser.add_argument("--frame-angles", type=int, default=900,
+                        help="Number of angles per 'frame' of a scan. "
+                             "Only affects 'dynamic' mode.")
     parser.add_argument('-v', "--verbose", action="store_true",
                         help="Print some extra information when running")
     return parser.parse_args()
@@ -137,6 +140,7 @@ if __name__ == '__main__':
     I0 = args.I0
     flatsnum = args.flatsnum
     shift_step = args.shiftstep
+    angles_per_frame = args.frame_angles
     verbose = args.verbose
     start = args.start
     total_samples = start + samples
@@ -208,7 +212,7 @@ if __name__ == '__main__':
                                  args.hdf_file,
                                  pipeline,
                                  sampleNo=sampleNo,
-                                 sino_size=900)
+                                 sino_size=angles_per_frame)
         else:
             raise ValueError(f"Option '--mode' should be one of "
                              f"'simple', 'complex', 'raw', 'real', 'dynamic'. "

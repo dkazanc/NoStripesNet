@@ -12,7 +12,8 @@ flatsnum=20 # the number of flat fields to generate
 I0=40000 # full-beam photon flux intensity
 pipeline='./tomo_pipeline.yml' # HTTomo YAML pipeline file
 hdf='/path/to/hdf_file.nxs' # Nexus file containing HDF data
+angles=900 # number of angles per 'frame' of a dynamic scan
 
 echo "Data generation has begun"
-python -m simulator.data_generator -m $mode -r $root -S $samples --start $start -s $shifts -p $shift_step -N $size -o $objects -f $flatsnum -I $I0 --pipeline $pipeline --hdf-file $hdf -v
+python -m simulator.data_generator -m $mode -r $root -S $samples --start $start -s $shifts -p $shift_step -N $size -o $objects -f $flatsnum -I $I0 --pipeline $pipeline --hdf-file $hdf  --frame-angles $angles -v
 echo "Data generation finished"

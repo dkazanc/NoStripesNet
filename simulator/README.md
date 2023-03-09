@@ -280,4 +280,7 @@ root
 ```
 All samples and frames are stored under root.<br>
 
-There are no extra parameters that affect Dynamic mode.<br>
+The following parameters affect Dynamic mode:<br>
+  - `--frame-angles`
+    - The number of angles that make up a sinogram, i.e. one 'frame' of a dynamic scan.
+    - Default is `900`.
