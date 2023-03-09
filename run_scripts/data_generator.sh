@@ -1,18 +1,18 @@
 #!/bin/bash
-# Parameters
-mode=complex # sample generation mode
-root='./data' # data generation root directory
-samples=1 # number of samples generate sinograms from
-shifts=5 # number of shifts in vertical height of each sample
-size=256 # grid size of sample (and therefore also height of 3D sinogram generated)
+# Parameters (for full description of each parameter, see ../simulator/README.md)
+mode=complex # type of data to generate
+root='./data' # directory to save data in
+samples=1 # number of samples generate
+start=0 # sample number to begin counting at
+shifts=5 # number of vertical shifts for each sample
+shift_step=5 # step in pixels between each shift
+size=256 # cubic size of sample generated
 objects=300 # number of objects to generate per sample
+flatsnum=20 # the number of flat fields to generate
 I0=40000 # full-beam photon flux intensity
-flatsnum=20 # the number of the flat fields generated
-shift_step=5 # the shift step of a sample in pixels
-start=0 # number at which to start generating samples
 pipeline='./tomo_pipeline.yml' # HTTomo YAML pipeline file
-hdf='/path/to/hdf_file.nxs' # HDF file containing real-life data
+hdf='/path/to/hdf_file.nxs' # Nexus file containing HDF data
 
 echo "Data generation has begun"
-python -m simulator.data_generator -m $mode -r $root -S $samples -s $shifts -N $size -o $objects -I $I0 -f $flatsnum -p $shift_step --start $start --pipeline $pipeline --hdf-file $hdf -v
+python -m simulator.data_generator -m $mode -r $root -S $samples --start $start -s $shifts -p $shift_step -N $size -o $objects -f $flatsnum -I $I0 --pipeline $pipeline --hdf-file $hdf -v
 echo "Data generation finished"
