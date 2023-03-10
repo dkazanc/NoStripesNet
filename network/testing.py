@@ -159,34 +159,32 @@ def test(model, dataloader, metrics, display_each_batch=False, verbose=True,
 def get_args():
     parser = argparse.ArgumentParser(description="Test neural network.")
     parser.add_argument('-r', "--root", type=str, default='./data',
-                        help="Path to input data used in network")
+                        help="Path to input data used in network.")
     parser.add_argument('-m', "--model", type=str, default='base',
                         help="Type of model to test. Must be one of "
-                             "['window', 'base', 'full', 'mask', 'simple].")
-    parser.add_argument('-f', "--model-file", type=str, default=None,
-                        help="Path from which to load models for testing")
+                             "['base', 'mask', 'simple', 'window', 'full'].")
     parser.add_argument('-N', "--size", type=int, default=256,
-                        help="Size of image generated (cubic). "
-                             "Also height of sinogram")
+                        help="Number of sinograms per sample.")
     parser.add_argument('-s', "--shifts", type=int, default=5,
-                        help="Number of vertical shifts applied to each "
-                             "sample in data generation")
-    parser.add_argument('-w', "--window-width", type=int, default=25,
-                        help="Width of windows that sinograms are split into")
+                        help="Number of shifts per sample.")
+    parser.add_argument("--tvt", type=int, default=[3, 1, 1], nargs=3,
+                        help="Train/Validate/Test split, entered as a ratio.")
     parser.add_argument('-B', "--batch-size", type=int, default=16,
-                        help="Batch size used for loading data  ")
+                        help="Batch size used for loading data.")
+    parser.add_argument('-f', "--model-file", type=str, default=None,
+                        help="Path to load model to test from.")
     parser.add_argument('-M', "--metrics", type=str, default='all', nargs='*',
                         help="Metrics used to evaluate model.")
     parser.add_argument("--display-each-batch", action="store_true",
                         help="Plot each batch of generated images during "
-                             "testing")
-    parser.add_argument("--tvt", type=int, default=[3, 1, 1], nargs=3,
-                        help="Train/Validate/Test split, entered as a ratio")
+                             "testing.")
     parser.add_argument("--visual-only", action="store_true",
                         help="Don't calculate metric scores; only display a "
-                             "batch of images")
+                             "batch of images.")
     parser.add_argument('-v', "--verbose", action="store_true",
-                        help="Print some extra information when running")
+                        help="Print some extra information when running.")
+    parser.add_argument('-w', "--window-width", type=int, default=25,
+                        help="Width of windows that sinograms are split into.")
     return parser.parse_args()
 
 
@@ -262,7 +260,7 @@ if __name__ == '__main__':
         model = MaskedGAN(gen, disc, mode='test', device=device)
     else:
         raise ValueError(f"Argument '--model' should be one of "
-                         f"['window', 'base', 'full', 'mask', 'simple]. "
+                         f"['base', 'mask', 'simple', 'window', 'full']. "
                          f"Instead got '{model_name}'")
 
     # Test

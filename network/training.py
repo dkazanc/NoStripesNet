@@ -252,54 +252,48 @@ def train(model, dataloader, epochs, save_every_epoch=False, save_name=None,
 def get_args():
     parser = argparse.ArgumentParser(description="Train neural network.")
     parser.add_argument('-r', "--root", type=str, default='./data',
-                        help="Path to input data used in network")
+                        help="Path to input data used in network.")
     parser.add_argument('-m', "--model", type=str, default='base',
                         help="Type of model to train. Must be one of "
-                             "['window', 'base', 'full', 'mask', 'simple].")
+                             "['base', 'mask', 'simple', 'window', 'full'].")
     parser.add_argument('-N', "--size", type=int, default=256,
-                        help="Size of image generated (cubic). "
-                             "Also height of sinogram")
+                        help="Number of sinograms per sample.")
     parser.add_argument('-s', "--shifts", type=int, default=5,
-                        help="Number of vertical shifts applied to each "
-                             "sample in data generation")
-    parser.add_argument('-w', "--window-width", type=int, default=25,
-                        help="Width of windows that sinograms are split into")
+                        help="Number of shifts per sample.")
+    parser.add_argument("--tvt", type=int, default=[3, 1, 1], nargs=3,
+                        help="Train/Validate/Test split, entered as a ratio.")
+    parser.add_argument('-B', "--batch-size", type=int, default=16,
+                        help="Batch size used for loading data.")
     parser.add_argument('-e', "--epochs", type=int, default=1,
                         help="Number of epochs "
-                             "(i.e. total passes through the dataset)")
+                             "(i.e. total passes through the dataset).")
     parser.add_argument('-l', "--learning-rate", type=float, default=0.0002,
-                        help="Learning rate of the network")
+                        help="Learning rate of the network.")
     parser.add_argument('-b', "--betas", type=float, default=[0.5, 0.999],
                         nargs=2,
                         help="Values of the beta parameters used in the Adam "
-                             "optimizer")
-    parser.add_argument('-B', "--batch-size", type=int, default=16,
-                        help="Batch size used for loading data "
-                             "and for minibatches for Adam optimizer")
+                             "optimizer.")
     parser.add_argument('--lambda', type=float, default=100, dest='lambdal1',
-                        help="Parameter by which L1 loss in the generator is "
-                             "multiplied")
+                        help="Weight by which L1 loss in the generator is "
+                             "multiplied.")
+    parser.add_argument("--lsgan", action="store_true",
+                        help="Train an LSGAN, rather than a normal GAN.")
     parser.add_argument('-d', "--save-dir", type=str, default=None,
                         help="Directory to save models to once training has "
                              "finished.")
     parser.add_argument('-f', "--model-file", type=str, default=None,
-                        help="Location of model on disk. If specified, this "
-                             "will override other hyperparameters and load a "
-                             "pre-trained model from disk.")
-    parser.add_argument("--tvt", type=int, default=[3, 1, 1], nargs=3,
-                        help="Train/Validate/Test split, entered as a ratio")
-    parser.add_argument("--lsgan", action="store_true",
-                        help="Train an LSGAN, rather than a normal GAN.")
+                        help="Path to a pre-trained model.")
     parser.add_argument("--subset", type=int, default=None,
-                        help="Option to use a subset of the full dataset")
+                        help="Train using a subset of the full dataset.")
     parser.add_argument("--force", action="store_true",
-                        help="When given, the model will not wait for any "
-                             "plots to close, will save the loss graph, "
-                             "and will skip any user inputs (pass 'y' to all)")
+                        help="Force the script to keep running, regardless of "
+                             "any waits/pauses.")
     parser.add_argument("--save-every-epoch", action="store_true",
-                        help="Save model every epoch")
+                        help="Save model at the end of every epoch.")
     parser.add_argument('-v', "--verbose", action="store_true",
-                        help="Print some extra information when running")
+                        help="Print some extra information when running.")
+    parser.add_argument('-w', "--window-width", type=int, default=25,
+                        help="Width of windows that sinograms are split into.")
     return parser.parse_args()
 
 
@@ -379,7 +373,7 @@ if __name__ == '__main__':
                           device=device)
     else:
         raise ValueError(f"Argument '--model' should be one of "
-                         f"['window', 'base', 'full', 'mask', 'simple]. "
+                         f"['base', 'mask', 'simple', 'window', 'full']. "
                          f"Instead got '{args.model}'")
 
     # Train

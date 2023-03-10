@@ -73,7 +73,7 @@ The following options are specific to training:
   - `--save-dir`, `-d`
     - Directory to save models to. If no directory is specified, models cannot be saved.
   - `--model-file`, `-f`
-    - Path to a file containing a model, if you wish to train a pretrained model rather than from scratch
+    - Path to a file containing a model, if you wish to train a pretrained model rather than from scratch.
   - `--subset`
     - Train using a subset of the full dataset.
     - If given as an option, it should contain the size of the subset as a parameter
