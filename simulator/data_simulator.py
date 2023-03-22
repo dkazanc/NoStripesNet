@@ -346,8 +346,8 @@ def simulateStripes(ProjData3D, percentage=1.2, max_thickness=3.0,
         if sampleNo is None:
             raise RuntimeError("If supplying an output path, a sample number"
                                "must also be supplied.")
-        shiftDir = os.path.join(output_path, f'shift00')
-        filename = os.path.join(shiftDir, f'{sampleNo:04}_shift00')
+        shiftDir = os.path.join(output_path, f'stripe')
+        filename = os.path.join(shiftDir, f'{sampleNo:04}_stripe')
         save3DTiff(projData3D_stripes, filename)
 
     return projData3D_stripes

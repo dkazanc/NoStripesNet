@@ -22,8 +22,8 @@ def makeDirectories(dataDir, sampleNo, shifts, mode):
         mode : str
             The mode that determines how sub-directories will be created.
             Must be one of:
-                ['simple', 'complex', 'raw']:
-                    For synthetic data ('simple' or 'complex'), or real data
+                ['complex', 'raw']:
+                    For synthetic data with noise ('complex'), or real data
                     loaded directly from an HDF file without any pre- or post-
                     processing ('raw').
                     Creates the following structure:
@@ -32,6 +32,14 @@ def makeDirectories(dataDir, sampleNo, shifts, mode):
                         │   ├── clean
                         │   ├── shift00
                         │   ├── shift01
+                        ... ...
+                'simple':
+                    For synthetic data with no noise.
+                    Creates the following structure:
+                        <dataDir>
+                        ├── <sampleNo>
+                        │   ├── clean
+                        │   └── stripe
                         ...
                 'real':
                     For real life data that simulates artifacts in clean
@@ -54,7 +62,7 @@ def makeDirectories(dataDir, sampleNo, shifts, mode):
             For modes ['real', 'dynamic'], this is <dataDir>.
     """
     mainPath = dataDir
-    if mode in ['simple', 'complex', 'raw']:
+    if mode in ['complex', 'raw']:
         mainPath = os.path.join(dataDir, str(sampleNo).zfill(4))
         os.makedirs(mainPath, exist_ok=True)
         cleanPath = os.path.join(mainPath, 'clean')
@@ -62,7 +70,14 @@ def makeDirectories(dataDir, sampleNo, shifts, mode):
         for shift in range(shifts):
             shiftPath = os.path.join(mainPath, 'shift' + str(shift).zfill(2))
             os.makedirs(shiftPath, exist_ok=True)
-    elif mode =='real':
+    elif mode == 'simple':
+        mainPath = os.path.join(dataDir, str(sampleNo).zfill(4))
+        os.makedirs(mainPath, exist_ok=True)
+        cleanPath = os.path.join(mainPath, 'clean')
+        os.makedirs(cleanPath, exist_ok=True)
+        stripePath = os.path.join(mainPath, 'stripe')
+        os.makedirs(stripePath, exist_ok=True)
+    elif mode == 'real':
         realArtPath = os.path.join(dataDir, 'real_artifacts')
         os.makedirs(realArtPath, exist_ok=True)
         fakeArtPath = os.path.join(dataDir, 'fake_artifacts')

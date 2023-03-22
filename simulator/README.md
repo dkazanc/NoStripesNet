@@ -73,14 +73,12 @@ root
 │   │   ├── 0000_clean_0000.tif
 │   │   │   ...
 │   │   └── 0000_clean_0255.tif
-│   └── shift00
-│       ├── 0000_shift00_0000.tif
+│   └── stripe
+│       ├── 0000_stripe_0000.tif
 │       │   ...
-│       └── 0000_shift00_0255.tif
+│       └── 0000_stripe_0255.tif
 ...
 ```
-Despite Simple mode not simulating shifted sinograms, the sinograms with stripes are still stored under a `shift00` directory.<br>
-This is outdated, and is likely to change at some point in the near future.<br>
 
 There are no extra parameters that affect Simple mode.<br>
 
