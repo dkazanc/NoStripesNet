@@ -11,7 +11,8 @@ from .models.generators import *
 from .models.discriminators import *
 from .datasets import PairedWindowDataset, BaseDataset, PairedFullDataset, \
     MaskedDataset
-from utils import apply_metrics, test_metrics, Rescale
+from utils.metrics import apply_metrics, test_metrics
+from utils.misc import Rescale
 
 
 def createModelParams(model, path, device):

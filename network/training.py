@@ -12,7 +12,7 @@ from .models.discriminators import *
 from .models.generators import *
 from .visualizers import BaseGANVisualizer, PairedWindowGANVisualizer, MaskedVisualizer
 from .datasets import PairedWindowDataset, BaseDataset, PairedFullDataset, MaskedDataset, RandomSubset
-from utils import Rescale
+from utils.misc import Rescale
 
 
 def saveModel(model, epoch, save_dir, save_name):
