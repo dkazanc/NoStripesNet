@@ -1,9 +1,9 @@
 import argparse
 import os
 import yaml
+import numpy as np
 from .data_simulator import generateSample, simulateFlats, simulateStripes
-from .realdata_loader import convertHDFtoTIFF, createDynamicDataset, \
-    savePairedData, saveRawData
+from .realdata_loader import generate_real_data
 
 
 def makeDirectories(dataDir, sampleNo, shifts, mode):
@@ -13,8 +13,9 @@ def makeDirectories(dataDir, sampleNo, shifts, mode):
         dataDir : str
             Root directory under which all sub-directories will be created.
         sampleNo : int
-            Sample Number. If mode is one of ['simple', 'complex', 'raw'],
-            a sub-directory named after this parameter will be created.
+            Sample Number. If mode is one of ['simple', 'complex', 'raw',
+            'paired'], a sub-directory named after this parameter will be
+            created.
         shifts : int
             Number of vertical shifts in data when scanned. If mode is one of
             ['simple', 'complex', 'raw'], a sub-directory will be created for
@@ -47,8 +48,14 @@ def makeDirectories(dataDir, sampleNo, shifts, mode):
                     real artifacts.
                     Creates the following structure:
                         <dataDir>
-                            ├── real_artifacts
-                            └── fake_artifacts
+                        ├── <sampleNo>
+                        │   ├── fake_artifacts
+                        │   │   ├── clean
+                        │   │   └── stripe
+                        │   └── real_artifacts
+                        │       ├── clean
+                        │       └── stripe
+                        ...
                 'dynamic':
                     For dynamic tomographic scans. All "frames" of a dynamic
                     scan are stored under one directory.
@@ -63,25 +70,30 @@ def makeDirectories(dataDir, sampleNo, shifts, mode):
     """
     mainPath = dataDir
     if mode in ['complex', 'raw']:
-        mainPath = os.path.join(dataDir, str(sampleNo).zfill(4))
+        mainPath = os.path.join(dataDir, f'{sampleNo:04}')
         os.makedirs(mainPath, exist_ok=True)
         cleanPath = os.path.join(mainPath, 'clean')
         os.makedirs(cleanPath, exist_ok=True)
         for shift in range(shifts):
-            shiftPath = os.path.join(mainPath, 'shift' + str(shift).zfill(2))
+            shiftPath = os.path.join(mainPath, f'shift{shift:02}')
             os.makedirs(shiftPath, exist_ok=True)
     elif mode == 'simple':
-        mainPath = os.path.join(dataDir, str(sampleNo).zfill(4))
+        mainPath = os.path.join(dataDir, f'{sampleNo:04}')
         os.makedirs(mainPath, exist_ok=True)
         cleanPath = os.path.join(mainPath, 'clean')
         os.makedirs(cleanPath, exist_ok=True)
         stripePath = os.path.join(mainPath, 'stripe')
         os.makedirs(stripePath, exist_ok=True)
     elif mode == 'paired':
-        realArtPath = os.path.join(dataDir, 'real_artifacts')
-        os.makedirs(realArtPath, exist_ok=True)
-        fakeArtPath = os.path.join(dataDir, 'fake_artifacts')
-        os.makedirs(fakeArtPath, exist_ok=True)
+        mainPath = os.path.join(dataDir, f'{sampleNo:04}')
+        cleanRealArtPath = os.path.join(mainPath, 'real_artifacts', 'clean')
+        stripeRealArtPath = os.path.join(mainPath, 'real_artifacts', 'stripe')
+        os.makedirs(cleanRealArtPath, exist_ok=True)
+        os.makedirs(stripeRealArtPath, exist_ok=True)
+        cleanFakeArtPath = os.path.join(mainPath, 'fake_artifacts', 'clean')
+        stripeFakeArtPath = os.path.join(mainPath, 'fake_artifacts', 'stripe')
+        os.makedirs(cleanFakeArtPath, exist_ok=True)
+        os.makedirs(stripeFakeArtPath, exist_ok=True)
     elif mode == 'dynamic':
         dynamicPath = os.path.join(dataDir, 'dynamic')
         os.makedirs(dynamicPath, exist_ok=True)
@@ -110,7 +122,7 @@ def get_args():
                            "Only affects modes 'complex', 'raw' and 'paired'.")
     parser.add_argument('-p', "--shiftstep", type=int, default=2,
                         help="Shift step of a sample in pixels. "
-                            "Only affects modes 'complex', 'raw' and paired'.")
+                           "Only affects modes 'complex', 'raw' and 'paired'.")
     parser.add_argument('-N', "--size", type=int, default=256,
                         help="Size of sample generated (cubic). "
                              "Only affects modes 'simple' and 'complex'.")
@@ -129,6 +141,16 @@ def get_args():
     parser.add_argument("--hdf-file", type=str, default=None,
                         help="Nexus file to load HDF data from. "
                            "Only affects modes 'raw', 'paired' and 'dynamic'.")
+    parser.add_argument('-C', "--chunk-size", type=int, default=243,
+                        help="Size of chunks to load real-life data in. "
+                           "Only affects modes 'raw', 'paired' and 'dynamic'.")
+    parser.add_argument("--flats", type=str, default=None,
+                        help="Path to HDF file containing flat & dark fields. "
+                           "Only affects modes 'raw', 'paired' and 'dynamic'.")
+    parser.add_argument("--mask", type=str, default=None,
+                        help="Path to mask on stripe locations in data. "
+                             "If left blank, a mask will be generated. Only "
+                             "affects 'paired' mode.")
     parser.add_argument("--frame-angles", type=int, default=900,
                         help="Number of angles per 'frame' of a scan. "
                              "Only affects 'dynamic' mode.")
@@ -161,8 +183,7 @@ if __name__ == '__main__':
     total_samples = start + samples
     for sampleNo in range(start, total_samples):
         if verbose:
-            print(f"Generating sample [{str(sampleNo).zfill(4)} / "
-                  f"{str(total_samples-1).zfill(4)}]")
+            print(f"Generating sample [{sampleNo:04} / {total_samples-1:04}]")
         mainPath = makeDirectories(root, sampleNo, shifts, args.mode)
         if args.mode == 'simple':
             cleanPath = os.path.join(mainPath, 'clean')
@@ -197,37 +218,22 @@ if __name__ == '__main__':
                                           output_path=mainPath,
                                           sampleNo=sampleNo,
                                           verbose=verbose)
-        elif args.mode == 'paired':
-            pipeline = yaml.safe_load(open(args.pipeline))
+        elif args.mode in ['raw', 'paired', 'dynamic']:
             if args.hdf_file is None:
                 raise ValueError(
                     "HDF File is None. Please include '--hdf-file' option.")
-            savePairedData(mainPath,
-                           args.hdf_file,
-                           pipeline,
-                           sampleNo=sampleNo,
-                           num_shifts=shifts,
-                           shiftstep=shift_step)
-        elif args.mode == 'raw':
-            pipeline = yaml.safe_load(open(args.pipeline))
-            if args.hdf_file is None:
-                raise ValueError(
-                    "HDF File is None. Please include '--hdf-file' option.")
-            saveRawData(mainPath,
-                        args.hdf_file,
-                        pipeline,
-                        sampleNo=sampleNo,
-                        num_shifts=shifts)
-        elif args.mode == 'dynamic':
-            pipeline = yaml.safe_load(open(args.pipeline))
-            if args.hdf_file is None:
-                raise ValueError(
-                    "HDF File is None. Please include '--hdf-file' option.")
-            createDynamicDataset(mainPath,
-                                 args.hdf_file,
-                                 pipeline,
-                                 sampleNo=sampleNo,
-                                 sino_size=angles_per_frame)
+            mask = args.mask
+            if mask is not None:
+                mask = np.load(mask)
+            generate_real_data(mainPath,
+                               args.hdf_file,
+                               args.mode,
+                               args.chunk_size,
+                               sampleNo,
+                               shifts,
+                               args.flats,
+                               mask=mask,
+                               frame_angles=angles_per_frame)
         else:
             raise ValueError(f"Option '--mode' should be one of 'simple', "
                              f"'complex', 'raw', 'paired', 'dynamic'. "
