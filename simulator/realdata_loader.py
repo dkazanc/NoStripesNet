@@ -80,7 +80,7 @@ class RealDataset:
         self.setPreviewFromItem(item)
         # load HDF5 file
         data = loadHDF(os.path.join(self.root, self.file), self.tomo_params,
-                       self.flats, self.darks, self.comm, self.ncore)[0]
+                       self.flats, self.darks, self.comm, self.ncore)
         # any NaN values will cause errors so must be set to 0
         data[np.isnan(data)] = 0
         print("Done.")

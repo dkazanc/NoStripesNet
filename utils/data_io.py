@@ -252,4 +252,4 @@ def loadHDF(file, tomo_params, flats=None, darks=None, comm=MPI.COMM_WORLD,
     data = normalize(data, flats, darks, ncore=ncore, cutoff=10)
     data = np.clip(data, 1e-09, 1)
     data = minus_log(data, ncore=ncore)
-    return data, angles
+    return data
