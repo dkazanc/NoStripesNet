@@ -41,7 +41,7 @@ def makeDirectories(dataDir, sampleNo, shifts, mode):
                         │   ├── clean
                         │   └── stripe
                         ...
-                'real':
+                'paired':
                     For real life data that simulates artifacts in clean
                     sinograms, and creates clean sinograms for sinograms with
                     real artifacts.
@@ -59,7 +59,7 @@ def makeDirectories(dataDir, sampleNo, shifts, mode):
         str
             The main root of the created directories. For modes ['simple',
             'complex', 'raw], this is '<dataDir>/<sampleNo>'.
-            For modes ['real', 'dynamic'], this is <dataDir>.
+            For modes ['paired', 'dynamic'], this is <dataDir>.
     """
     mainPath = dataDir
     if mode in ['complex', 'raw']:
@@ -77,7 +77,7 @@ def makeDirectories(dataDir, sampleNo, shifts, mode):
         os.makedirs(cleanPath, exist_ok=True)
         stripePath = os.path.join(mainPath, 'stripe')
         os.makedirs(stripePath, exist_ok=True)
-    elif mode == 'real':
+    elif mode == 'paired':
         realArtPath = os.path.join(dataDir, 'real_artifacts')
         os.makedirs(realArtPath, exist_ok=True)
         fakeArtPath = os.path.join(dataDir, 'fake_artifacts')
@@ -87,7 +87,7 @@ def makeDirectories(dataDir, sampleNo, shifts, mode):
         os.makedirs(dynamicPath, exist_ok=True)
     else:
         raise ValueError(
-            "Mode should be one of [simple, complex real, raw, dynamic]. "
+            "Mode should be one of [simple, complex raw, paired, dynamic]. "
             f"Instead got '{mode}'.")
     return mainPath
 
@@ -97,7 +97,7 @@ def get_args():
                                                  "generate samples of data.")
     parser.add_argument('-m', '--mode', type=str, default='complex',
                         help="Type of data to generate. Must be one of: "
-                             "['simple', 'complex', 'raw', 'real', 'dynamic']")
+                           "['simple', 'complex', 'raw', 'paired', 'dynamic']")
     parser.add_argument('-r', '--root', type=str, default=None,
                         help="Directory to save data in.")
     parser.add_argument('-S', "--samples", type=int, default=1,
@@ -107,10 +107,10 @@ def get_args():
                              "some data has already been generated).")
     parser.add_argument('-s', "--shifts", type=int, default=5,
                         help="Number of vertical shifts for each sample. "
-                             "Only affects modes 'complex', 'raw' and 'real'.")
+                           "Only affects modes 'complex', 'raw' and 'paired'.")
     parser.add_argument('-p', "--shiftstep", type=int, default=2,
                         help="Shift step of a sample in pixels. "
-                             "Only affects modes 'complex', 'raw' and real'.")
+                            "Only affects modes 'complex', 'raw' and paired'.")
     parser.add_argument('-N', "--size", type=int, default=256,
                         help="Size of sample generated (cubic). "
                              "Only affects modes 'simple' and 'complex'.")
@@ -125,10 +125,10 @@ def get_args():
                              "Only affects 'complex' mode.")
     parser.add_argument("--pipeline", type=str, default='tomo_pipeline.yml',
                         help="HTTomo YAML pipeline file for loading HDF data. "
-                             "Only affects modes 'raw', 'real' and 'dynamic'.")
+                           "Only affects modes 'raw', 'paired' and 'dynamic'.")
     parser.add_argument("--hdf-file", type=str, default=None,
                         help="Nexus file to load HDF data from. "
-                             "Only affects modes 'raw', 'real' and 'dynamic'.")
+                           "Only affects modes 'raw', 'paired' and 'dynamic'.")
     parser.add_argument("--frame-angles", type=int, default=900,
                         help="Number of angles per 'frame' of a scan. "
                              "Only affects 'dynamic' mode.")
@@ -197,7 +197,7 @@ if __name__ == '__main__':
                                           output_path=mainPath,
                                           sampleNo=sampleNo,
                                           verbose=verbose)
-        elif args.mode == 'real':
+        elif args.mode == 'paired':
             pipeline = yaml.safe_load(open(args.pipeline))
             if args.hdf_file is None:
                 raise ValueError(
@@ -229,6 +229,6 @@ if __name__ == '__main__':
                                  sampleNo=sampleNo,
                                  sino_size=angles_per_frame)
         else:
-            raise ValueError(f"Option '--mode' should be one of "
-                             f"'simple', 'complex', 'raw', 'real', 'dynamic'. "
+            raise ValueError(f"Option '--mode' should be one of 'simple', "
+                             f"'complex', 'raw', 'paired', 'dynamic'. "
                              f"Instead got '{args.mode}'.")

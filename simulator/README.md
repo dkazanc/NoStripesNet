@@ -12,13 +12,13 @@ There are several sub-methods within these two:
    - Complex (*for a more realistic simulation of artifacts*)
  - **Real-life**
    - Raw (*saves the data as-is, with no post-processing/pair-finding*)
-   - Real (*creates input/target pairs based on artifacts in sinograms*)
+   - Paired (*creates input/target pairs based on artifacts in sinograms*)
    - Dynamic (*for dynamic tomography scans*)
 
 The following parameters affect *all* methods of generating data:
  - `--mode`, `-m`
    - The method to use when generating data. Default is `complex`.
-   - Must be one of `simple`, `complex`, `raw`, `real`, or `dynamic`.
+   - Must be one of `simple`, `complex`, `raw`, `paired`, or `dynamic`.
    - If it is not recognised, an error will be raised.
  - `--root`, `-r`
    - The main directory under which to store generated data. Default is `./data`.
@@ -157,7 +157,7 @@ The following parameters affect all sub-methods of Real-life data:
   - `--hdf-root`
     - The .nxs file to load data from. Default is `None`.
     - This should be shift 0, e.g. `1000.nxs` in the below examples.
-    - If not specified, and mode is one of `raw`, `real`, or `dynamic`, an error will be raised.
+    - If not specified, and mode is one of `raw`, `paired`, or `dynamic`, an error will be raised.
 
 ### Raw
 This method applies no post-processing or pair-finding, and just saves sinograms as they are in the hdf5 file.<br>
@@ -190,7 +190,7 @@ The following parameters affect Raw mode:
   - `--shiftstep`, `-p`
     - The step in pixels between each shift. Default is `2`.
 
-### Real
+### Paired
 This method creates input/target (or stripe/clean) pairs based on whether sinograms from the data contain stripes.<br>
 It calculates a binary mask indicating the locations of stripes, then based on this mask determines whether a sinogram
 has a stripe in or not.<br>
@@ -247,7 +247,7 @@ root
 Due to the nature of the pair-creation algorithm, any sinogram in `root/fake_artifacts` cannot also exist in `root/real_artifacts`.<br>
 Additionally, there are no shift sub-directories; all shifts are stored under one directory.<br>
 
-The following parameters affect Real mode:
+The following parameters affect Paired mode:
   - `--shifts`, `-s`
     - The number of vertical shifts when sample was scanned. Default is `5`.
     - All shifts are stored under the same directory.
