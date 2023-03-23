@@ -158,6 +158,15 @@ The following parameters affect all sub-methods of Real-life data:
     - The .nxs file to load data from. Default is `None`.
     - This should be shift 0, e.g. `1000.nxs` in the below examples.
     - If not specified, and mode is one of `raw`, `paired`, or `dynamic`, an error will be raised.
+  - `-C`, `--chunk-size`
+    - Size of chunks to load data in. Default is `243`.
+    - If you have a computer with lots of memory, you can set chunk size to the full size of the dataset to load the 
+    whole dataset at once.
+    - This means the data does not need to be re-loaded (i.e. step 2 above does not occur).
+  - `--flats`
+    - Path to HDF/Nexus file containing flat & dark field data to normalize with. Default is `None`.
+    - If not specified, flats & darks will be loaded from `hdf-root`. If `hdf-root` contains no flats or darks, an error will be raised.
+    
 
 ### Raw
 This method applies no post-processing or pair-finding, and just saves sinograms as they are in the hdf5 file.<br>
@@ -255,6 +264,10 @@ The following parameters affect Paired mode:
     - For example, if shift 0 was in `1000.nxs`, shift 1 will be in `1001.nxs`, shift 2 in `1002.nxs`, etc.
   - `--shiftstep`, `-p`
     - The step in pixels between each shift. Default is `2`.
+  - `--mask`
+    - The path to the mask containing locations of stripes. Default is `None`.
+    - This should be a numpy file `.npy`, generated using the stripe detection method in Larix.
+    - If not given, a mask will be generated at runtime. However, this can take multiple hours. 
 
 ### Dynamic
 This method should only be used for dynamic tomographic experiments.<br>
