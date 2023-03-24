@@ -65,8 +65,8 @@ def get_paired_data(tomogram, mask=None):
     # Resize
     tomogram = resize_chunk(tomogram, (tomogram.shape[0], 402, 362))
     out = np.ndarray(tomogram.shape[0], dtype=[('real_artifact', '?'),
-                                               ('stripe', '<f8', (402, 362)),
-                                               ('clean', '<f8', (402, 362))])
+                                               ('stripe', 'f', (402, 362)),
+                                               ('clean', 'f', (402, 362))])
     # Generate mask if not given
     if mask is None:
         print("Mask not given so generating one...")
