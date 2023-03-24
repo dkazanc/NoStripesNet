@@ -14,11 +14,12 @@ There are several sub-methods within these two:
    - Raw (*saves the data as-is, with no post-processing/pair-finding*)
    - Paired (*creates input/target pairs based on artifacts in sinograms*)
    - Dynamic (*for dynamic tomography scans*)
+   - Patch (*splits sinograms into smaller patches*)
 
 The following parameters affect *all* methods of generating data:
  - `--mode`, `-m`
    - The method to use when generating data. Default is `complex`.
-   - Must be one of `simple`, `complex`, `raw`, `paired`, or `dynamic`.
+   - Must be one of `simple`, `complex`, `raw`, `paired`, `dynamic`, or `patch`.
    - If it is not recognised, an error will be raised.
  - `--root`, `-r`
    - The main directory under which to store generated data. Default is `./data`.
