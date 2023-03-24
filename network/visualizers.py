@@ -98,7 +98,7 @@ class BaseGANVisualizer:
         if not self.block:
             classname = self.model.__class__.__name__
             num_losses = len(self.model.lossD_values)
-            savename = f"../images/{classname}_{num_losses}_losses.png"
+            savename = f"./images/{classname}_{num_losses}_losses.png"
             plt.savefig(savename)
         plt.show(block=self.block)
 

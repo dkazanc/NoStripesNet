@@ -12,6 +12,7 @@ from .models.discriminators import *
 from .models.generators import *
 from .visualizers import BaseGANVisualizer, PairedWindowGANVisualizer, \
     MaskedVisualizer
+from .patch_visualizer import PatchVisualizer
 from .datasets import PairedWindowDataset, BaseDataset, PairedFullDataset, \
     MaskedDataset, RandomSubset
 from utils.misc import Rescale
@@ -106,33 +107,9 @@ def getTrainingData(dataset, data):
         raise ValueError(f"Dataset '{dataset}' not recognised.")
 
 
-def getVisualizer(model, dataset, size, block=True):
-    """Get the correct visualizer class for a given Dataset.
-    Parameters:
-        model : BaseGAN
-            GAN to visualize data from
-        dataset : torch.utils.data.Dataset
-            Dataset class to visualize data from
-        size : int
-            Size of sinogram
-        block : bool
-            Whether or not plots should pause execution of code.
-            Default is True.
-    """
-    if type(dataset) == BaseDataset:
-        return BaseGANVisualizer(model, dataset, size, block)
-    elif type(dataset) == PairedWindowDataset:
-        return PairedWindowGANVisualizer(model, dataset, size, block)
-    elif type(dataset) == PairedFullDataset:
-        return BaseGANVisualizer(model, dataset, size, block)
-    elif type(dataset) == MaskedDataset:
-        return MaskedVisualizer(model, dataset, size, block)
-    else:
-        raise ValueError(f"Dataset '{dataset}' not recognised.")
-
-
-def train(model, dataloader, epochs, save_every_epoch=False, save_name=None,
-          save_dir=None, start_epoch=0, verbose=True, force=False):
+def train(model, dataloader, epochs, vis, save_every_epoch=False,
+          save_name=None, save_dir=None, start_epoch=0, verbose=True,
+          force=False):
     """Train a model.
     Parameters:
         model : torch.nn.Module
@@ -141,6 +118,8 @@ def train(model, dataloader, epochs, save_every_epoch=False, save_name=None,
             DataLoader instance from which to load data
         epochs : int
             Number of epochs for which to train the model
+        vis : object
+            Visualizer to plot results of training.
         save_every_epoch : bool
             Whether the model should be saved to disk after the completion of
             each epoch. Default is False.
@@ -165,7 +144,6 @@ def train(model, dataloader, epochs, save_every_epoch=False, save_name=None,
         dataset = dataloader.dataset
     epochs += start_epoch
     num_batches = len(dataloader)
-    vis = getVisualizer(model, dataset, dataset.size, block=not force)
     start_time = datetime.now()
     print(f"Training has begun. "
           f"Epochs: {epochs}, "
@@ -343,6 +321,7 @@ if __name__ == '__main__':
         model = BaseGAN(gen, disc, mode='train', learning_rate=learning_rate,
                         betas=betas, lambdaL1=lambdal1, lsgan=lsgan,
                         device=device)
+        vis = BaseGANVisualizer(model, dataset, size, not force)
     elif args.model == 'window':
         # Create dataset
         dataset = PairedWindowDataset(root=dataroot, mode='train', tvt=tvt,
@@ -355,6 +334,7 @@ if __name__ == '__main__':
         model = WindowGAN(windowWidth, gen, disc, mode='train',
                           learning_rate=learning_rate, betas=betas,
                           lambdaL1=lambdal1, lsgan=lsgan, device=device)
+        vis = PairedWindowGANVisualizer(model, dataset, size, not force)
     elif args.model == 'full':
         # Create dataset
         dataset = PairedFullDataset(root=dataroot, mode='train', tvt=tvt,
@@ -364,6 +344,7 @@ if __name__ == '__main__':
         model = BaseGAN(gen, disc, mode='train', learning_rate=learning_rate,
                         betas=betas, lambdaL1=lambdal1, lsgan=lsgan,
                         device=device)
+        vis = BaseGANVisualizer(model, dataset, size, not force)
     elif args.model == 'mask' or args.model == 'simple':
         # Create dataset
         dataset = MaskedDataset(root=dataroot, mode='train', tvt=tvt,
@@ -373,6 +354,7 @@ if __name__ == '__main__':
         model = MaskedGAN(gen, disc, mode='train', learning_rate=learning_rate,
                           betas=betas, lambdaL1=lambdal1, lsgan=lsgan,
                           device=device)
+        vis = MaskedVisualizer(model, dataset, size, not force)
     elif args.model == 'patch':
         dataset = MaskedDataset(root=dataroot, mode='train', tvt=tvt,
                                 size=size, shifts=num_shifts,
@@ -382,6 +364,7 @@ if __name__ == '__main__':
         model = MaskedGAN(gen, disc, mode='train', learning_rate=learning_rate,
                           betas=betas, lambdaL1=lambdal1, lsgan=lsgan,
                           device=device)
+        vis = PatchVisualizer(dataroot, model, block=not force)
     else:
         raise ValueError(f"Argument '--model' should be one of ['base', 'mask'"
                          f", 'simple', 'patch', 'window', 'full']. "
@@ -396,6 +379,6 @@ if __name__ == '__main__':
     if sbst_size is not None:
         dataset = RandomSubset(dataset, sbst_size)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-    train(model, dataloader, epochs, save_every_epoch=save_every_epoch,
+    train(model, dataloader, epochs, vis, save_every_epoch=save_every_epoch,
           save_dir=model_save_dir, save_name=args.model,
           start_epoch=start_epoch, verbose=verbose, force=force)

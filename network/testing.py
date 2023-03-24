@@ -5,7 +5,7 @@ from datetime import datetime
 from torch.utils.data import DataLoader, Subset
 import torchvision.transforms as transforms
 
-from .training import getVisualizer, getTrainingData
+from .training import getTrainingData
 from .models import BaseGAN, WindowGAN, MaskedGAN, init_weights
 from .models.generators import *
 from .models.discriminators import *
@@ -13,6 +13,9 @@ from .datasets import PairedWindowDataset, BaseDataset, PairedFullDataset, \
     MaskedDataset
 from utils.metrics import apply_metrics, test_metrics
 from utils.misc import Rescale
+from .visualizers import BaseGANVisualizer, PairedWindowGANVisualizer, \
+    MaskedVisualizer
+from .patch_visualizer import PatchVisualizer
 
 
 def createModelParams(model, path, device):
@@ -57,8 +60,8 @@ def accuracy(predictions, labels):
     return predictions[predictions == labels].nelement() / labels.nelement()
 
 
-def test(model, dataloader, metrics, display_each_batch=False, verbose=True,
-         visual_only=False):
+def test(model, dataloader, metrics, vis, display_each_batch=False,
+         verbose=True, visual_only=False):
     """Train a model.
     Parameters:
         model : torch.nn.Module
@@ -67,6 +70,8 @@ def test(model, dataloader, metrics, display_each_batch=False, verbose=True,
             DataLoader instance from which to load data
         metrics : List[function]
             List of test metrics to apply to data
+        vis : object
+            Visualizer to plot results of training.
         display_each_batch : bool
             Whether each batch should be plotted. Default is False.
         verbose : bool
@@ -82,7 +87,6 @@ def test(model, dataloader, metrics, display_each_batch=False, verbose=True,
         dataset = dataloader.dataset.dataset
     else:
         dataset = dataloader.dataset
-    vis = getVisualizer(model, dataset, dataset.size)
     overall_mean_scores = {metric.__name__: [] for metric in metrics}
     overall_accuracies = {'total': 0, 'fake': 0, 'real': 0}
     start_time = datetime.now()
@@ -237,6 +241,7 @@ if __name__ == '__main__':
                               shifts=num_shifts,
                               transform=transform)
         model = BaseGAN(gen, disc, mode='test', device=device)
+        vis = BaseGANVisualizer(model, dataset, size, True)
     elif model_name == 'window':
         # Create dataset and dataloader
         dataset = PairedWindowDataset(root=dataroot, mode='test', tvt=tvt,
@@ -247,18 +252,21 @@ if __name__ == '__main__':
         gen = WindowUNet()
         disc = WindowDiscriminator()
         model = WindowGAN(windowWidth, gen, disc, mode='test', device=device)
+        vis = PairedWindowGANVisualizer(model, dataset, size, True)
     elif model_name == 'full':
         dataset = PairedFullDataset(root=dataroot, mode='test', tvt=tvt,
                                     size=size, shifts=num_shifts,
                                     windowWidth=windowWidth,
                                     transform=transform)
         model = BaseGAN(gen, disc, mode='test', device=device)
+        vis = BaseGANVisualizer(model, dataset, size, True)
     elif model_name == 'mask' or model_name == 'simple':
         dataset = MaskedDataset(root=dataroot, mode='test', tvt=tvt, size=size,
                                 shifts=num_shifts,
                                 transform=transform,
                                 simple=model_name=='simple')
         model = MaskedGAN(gen, disc, mode='test', device=device)
+        vis = MaskedVisualizer(model, dataset, size, True)
     elif args.model == 'patch':
         dataset = MaskedDataset(root=dataroot, mode='test', tvt=tvt,
                                 size=size, shifts=num_shifts,
@@ -266,6 +274,7 @@ if __name__ == '__main__':
         disc = PatchDiscriminator()
         gen = PatchUNet()
         model = MaskedGAN(gen, disc, mode='test', device=device)
+        vis = PatchVisualizer(dataroot, model, block=True)
     else:
         raise ValueError(f"Argument '--model' should be one of ['base', 'mask'"
                          f", 'simple', 'patch', 'window', 'full']. "
@@ -274,5 +283,5 @@ if __name__ == '__main__':
     # Test
     createModelParams(model, model_file, device)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-    test(model, dataloader, ms, display_each_batch=display_each_batch,
+    test(model, dataloader, ms, vis, display_each_batch=display_each_batch,
          verbose=verbose, visual_only=visual)
