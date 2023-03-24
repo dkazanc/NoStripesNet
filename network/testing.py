@@ -162,8 +162,8 @@ def get_args():
     parser.add_argument('-r', "--root", type=str, default='./data',
                         help="Path to input data used in network.")
     parser.add_argument('-m', "--model", type=str, default='base',
-                        help="Type of model to test. Must be one of "
-                             "['base', 'mask', 'simple', 'window', 'full'].")
+                        help="Type of model to train. Must be one of ['base', "
+                             "'mask', 'simple', 'patch', 'window', 'full'].")
     parser.add_argument('-N', "--size", type=int, default=256,
                         help="Number of sinograms per sample.")
     parser.add_argument('-s', "--shifts", type=int, default=5,
@@ -259,10 +259,17 @@ if __name__ == '__main__':
                                 transform=transform,
                                 simple=model_name=='simple')
         model = MaskedGAN(gen, disc, mode='test', device=device)
+    elif args.model == 'patch':
+        dataset = MaskedDataset(root=dataroot, mode='test', tvt=tvt,
+                                size=size, shifts=num_shifts,
+                                transform=transform, simple=True)
+        disc = PatchDiscriminator()
+        gen = PatchUNet()
+        model = MaskedGAN(gen, disc, mode='test', device=device)
     else:
-        raise ValueError(f"Argument '--model' should be one of "
-                         f"['base', 'mask', 'simple', 'window', 'full']. "
-                         f"Instead got '{model_name}'")
+        raise ValueError(f"Argument '--model' should be one of ['base', 'mask'"
+                         f", 'simple', 'patch', 'window', 'full']. "
+                         f"Instead got '{args.model}'")
 
     # Test
     createModelParams(model, model_file, device)

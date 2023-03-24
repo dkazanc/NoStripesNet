@@ -10,8 +10,10 @@ import torchvision.transforms as transforms
 from .models import BaseGAN, WindowGAN, MaskedGAN, init_weights
 from .models.discriminators import *
 from .models.generators import *
-from .visualizers import BaseGANVisualizer, PairedWindowGANVisualizer, MaskedVisualizer
-from .datasets import PairedWindowDataset, BaseDataset, PairedFullDataset, MaskedDataset, RandomSubset
+from .visualizers import BaseGANVisualizer, PairedWindowGANVisualizer, \
+    MaskedVisualizer
+from .datasets import PairedWindowDataset, BaseDataset, PairedFullDataset, \
+    MaskedDataset, RandomSubset
 from utils.misc import Rescale
 
 
@@ -254,8 +256,8 @@ def get_args():
     parser.add_argument('-r', "--root", type=str, default='./data',
                         help="Path to input data used in network.")
     parser.add_argument('-m', "--model", type=str, default='base',
-                        help="Type of model to train. Must be one of "
-                             "['base', 'mask', 'simple', 'window', 'full'].")
+                        help="Type of model to train. Must be one of ['base', "
+                             "'mask', 'simple', 'patch', 'window', 'full'].")
     parser.add_argument('-N', "--size", type=int, default=256,
                         help="Number of sinograms per sample.")
     parser.add_argument('-s', "--shifts", type=int, default=5,
@@ -371,9 +373,18 @@ if __name__ == '__main__':
         model = MaskedGAN(gen, disc, mode='train', learning_rate=learning_rate,
                           betas=betas, lambdaL1=lambdal1, lsgan=lsgan,
                           device=device)
+    elif args.model == 'patch':
+        dataset = MaskedDataset(root=dataroot, mode='train', tvt=tvt,
+                                size=size, shifts=num_shifts,
+                                transform=transform, simple=True)
+        disc = PatchDiscriminator()
+        gen = PatchUNet()
+        model = MaskedGAN(gen, disc, mode='train', learning_rate=learning_rate,
+                          betas=betas, lambdaL1=lambdal1, lsgan=lsgan,
+                          device=device)
     else:
-        raise ValueError(f"Argument '--model' should be one of "
-                         f"['base', 'mask', 'simple', 'window', 'full']. "
+        raise ValueError(f"Argument '--model' should be one of ['base', 'mask'"
+                         f", 'simple', 'patch', 'window', 'full']. "
                          f"Instead got '{args.model}'")
 
     # Train

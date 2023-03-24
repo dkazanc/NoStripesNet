@@ -82,7 +82,7 @@ class PatchDiscriminator(nn.Module):
         self.down = BaseDiscriminator.down
 
         self.model = nn.Sequential(
-            self.down(2, filters, batchNorm=False),
+            self.down(2, filters, p=(1, 1), batchNorm=False),
             self.down(filters, filters*2, p=(1, 1)),
             self.down(filters*2, filters*4, p=(1, 1)),
             self.down(filters*4, filters*8, p=(1, 1)),
