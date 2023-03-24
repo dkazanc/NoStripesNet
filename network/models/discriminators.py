@@ -70,6 +70,33 @@ class BaseDiscriminator(nn.Module):
         )
 
 
+class PatchDiscriminator(nn.Module):
+    """Discriminator that runs on patches of size (1801, 256).
+    For use when mode == 'patch'.
+    Has a similar structure to BaseDiscriminator, but with (1, 1) padding in
+    every layer.
+    """
+    def __init__(self):
+        super(PatchDiscriminator, self).__init__()
+        filters = 64
+        self.down = BaseDiscriminator.down
+
+        self.model = nn.Sequential(
+            self.down(2, filters, batchNorm=False),
+            self.down(filters, filters*2, p=(1, 1)),
+            self.down(filters*2, filters*4, p=(1, 1)),
+            self.down(filters*4, filters*8, p=(1, 1)),
+            self.down(filters*8, filters*8, p=(1, 1)),
+            self.down(filters*8, filters*8, p=(1, 1)),
+            self.down(filters*8, filters*8, p=(1, 1)),
+            nn.Conv2d(filters*8, 1, kernel_size=(4, 4), stride=(2, 2),
+                      padding=(1, 1), bias=False)
+        )
+
+    def forward(self, x):
+        return self.model(x)
+
+
 class WindowDiscriminator(nn.Module):
     """Discriminator used by GANs training on windowed sinograms.
     Assumes window width = 25, and cannot scale to different widths.
