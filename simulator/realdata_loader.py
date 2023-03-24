@@ -95,12 +95,105 @@ def get_paired_data(tomogram, mask=None):
     return out
 
 
+def create_patches(data, patch_size):
+    """Split a 2D array into a number of smaller 2D patches.
+    Parameters:
+        data : np.ndarray
+            Data to be split into patches. If data does not evenly fit into
+            the size of patch specified, it will be cropped.
+        patch_size : Tuple[int, int]
+            Size of patches. Must have form:
+                (patch_height, patch_width)
+    Returns:
+        np.ndarray
+            Array containing patches. Has shape:
+                (num_patches, patch_height, patch_width)
+    """
+    # Check that data can be evenly split into patches of size `patch_size`
+    remainder = np.mod(data.shape, patch_size)
+    if remainder[0] != 0:
+        # If patch height doesn't evenly go into image height, crop image
+        if remainder[0] % 2 == 0:
+            # If remainder is even, crop evenly on bottom & top
+            data = data[remainder[0]//2:-(remainder[0]//2)]
+        else:
+            # Otherwise, crop one more from top
+            data = data[remainder[0]//2:-(remainder[0]//2) - 1]
+    if remainder[1] != 0:
+        # If patch width doesn't evenly go into image width, crop image
+        if remainder[1] % 2 == 0:
+            # If remainder is even, crop evenly on left & right
+            data = data[:, remainder[1]//2:-(remainder[1]//2)]
+        else:
+            # Otherwise, crop one more from right
+            data = data[:, remainder[1]//2:-(remainder[1]//2) - 1]
+    # First, split into patches by width
+    num_patches_w = data.shape[1] // patch_size[1]
+    patches_w = np.split(data, num_patches_w, axis=1)
+    # Then, split into patches by height
+    num_patches_h = data.shape[0] // patch_size[0]
+    patches_h = [np.split(p, num_patches_h, axis=0) for p in patches_w]
+    # Finally, combine into one array
+    num_patches = num_patches_h * num_patches_w
+    patches = np.asarray(patches_h).reshape(num_patches, *patch_size)
+    return patches
+
+
+def get_patch_paired_data(tomogram, mask=None, patch_size=(1801, 256)):
+    """Given a 3D tomogram (or subset), split each sinogram into patches and
+     return pairs of a clean patch and the same patch with stripes.
+    Parameters:
+        tomogram : np.ndarray
+            3D tomographic data. Can be a subset of the full tomogram.
+            Must have shape (detector Y, angles, detector X).
+        mask : np.ndarray
+            Mask indicating locations of stripes in the tomogram. If not
+            provided, a mask will be generated (this can take multiple hours).
+            Must have same shape as `tomogram`. Default is None.
+        patch_size : Tuple[int, int]
+            Size of patches to split each sinogram into. If a sinogram does not
+            evenly go into the size given, it will be cropped.
+    Returns:
+        np.ndarray
+            The clean/stripe pairs in the given tomogram.
+    """
+    out = []
+    for s in range(tomogram.shape[0]):
+        sino_patches = create_patches(tomogram[s], patch_size)
+        mask_patches = create_patches(mask[s], patch_size)
+        tmp_out = np.ndarray(len(sino_patches),
+                             dtype=[('real_artifact', '?'),
+                                    ('stripe', 'f', patch_size),
+                                    ('clean', 'f', patch_size)])
+        # Loop through each patch
+        for p in range(len(sino_patches)):
+            # if sinogram doesn't contain stripes, add stripes synthetically
+            if mask_patches[p].sum() == 0:
+                clean = sino_patches[p]
+                # Add synthetic stripes to clean sinogram patch
+                # currently done with TomoPhantom, other methods could be used
+                stripe = add_stripes(clean, percentage=0.4, maxthickness=2,
+                                     intensity_thresh=0.2, stripe_type='full',
+                                     variability=0)
+                # Clip back to original range
+                stripe = np.clip(stripe, clean.min(), clean.max())
+                real_artifact = False
+            else:
+                # Otherwise, stripe is current patch and clean is None
+                clean = None
+                stripe = sino_patches[p]
+                real_artifact = True
+            tmp_out[p] = real_artifact, stripe, clean
+        out.append(tmp_out)
+    return np.asarray(out)
+
+
 def get_data(mode, data, chunk_size, chunk_num, hdf_idx, **kwargs):
     """Process the data according to the given mode.
     Parameters:
         mode : str
-            Mode to process the data in. Must be one of 'raw', 'paired', or
-            'dynamic'.
+            Mode to process the data in. Must be one of 'raw', 'paired',
+            'dynamic', 'patch'.
         data : np.ndarray
             The data to process.
         chunk_size : int
@@ -109,18 +202,19 @@ def get_data(mode, data, chunk_size, chunk_num, hdf_idx, **kwargs):
             Index of chunk that `data` belongs to.
         hdf_idx : int
             Index of HDF file that data was loaded from. Only applies when
-            mode == `paired` and number of shifts is greater than 1.
+            mode in [`paired`, 'patch'] and number of shifts is greater than 1.
         kwargs:
             Keyword arguments for subsequent processing functions.
             If mode == 'paired', kwarg 'mask' must be given.
             If mode == 'dynamic', kwarg 'frame_angles' must be given.
+            If mode == 'patch', kwargs 'mask' and 'patch_size' must be given.
     Returns:
          np.ndarray
             Array of processed data to be saved to disk.
     """
     if mode == 'raw':
         return get_raw_data(data)
-    elif mode == 'paired':
+    elif mode in ['real', 'patch']:
         if 'mask' not in kwargs:
             raise ValueError("A mask should be given.")
         # Get correct mask for current shift
@@ -128,14 +222,19 @@ def get_data(mode, data, chunk_size, chunk_num, hdf_idx, **kwargs):
         # Crop mask to correct size
         mask_idx = np.s_[:, chunk_num * chunk_size:(chunk_num+1) * chunk_size]
         mask = np.swapaxes(mask[mask_idx], 0, 1)
-        return get_paired_data(data, mask=mask)
+        if mode == 'real':
+            return get_paired_data(data, mask=mask)
+        if 'patch_size' not in kwargs:
+            raise ValueError("Patch size should be given.")
+        patch_size = kwargs['patch_size']
+        return get_patch_paired_data(data, mask=mask, patch_size=patch_size)
     elif mode == 'dynamic':
         if 'frame_angles' not in kwargs:
             raise ValueError("Angles per frame should be given.")
         return get_dynamic_data(data, frame_angles=kwargs['frame_angles'])
     else:
-        raise ValueError(f"Mode must be one of ['raw', 'paired', 'dynamic']. "
-                         f"Instead got mode = '{mode}'.")
+        raise ValueError(f"Mode must be one of ['raw', 'paired', 'dynamic', "
+                         f"'patch']. Instead got mode = '{mode}'.")
 
 
 def save_rescaled_sino(sino, imin, imax, path):
@@ -175,7 +274,7 @@ def save_chunk(chunk, root, mode, start=0, sample_no=0, shift_no=0):
             Path to save sinograms to.
         mode : str
             Mode to save sinograms in.
-            Must be one of ['raw', 'paired', 'dynamic'].
+            Must be one of ['raw', 'paired', 'dynamic', 'patch'].
         start : int
             Index of slice to start counting at.
         sample_no : int
@@ -234,6 +333,29 @@ def save_chunk(chunk, root, mode, start=0, sample_no=0, shift_no=0):
                                                         chunk_max, clean_path)
             if s % 100 == 0:
                 print("Done.")
+    elif mode == 'patch':
+        basename = f'{sample_no:04}_shift{shift_no:02}'
+        for s in range(chunk.shape[0]):
+            # Rescale each patch w.r.t sinogram, rather than chunk
+            sino_min = np.nanmin(chunk[s]['stripe'])
+            sino_max = np.nanmax(chunk[s]['stripe'])
+            for p in range(chunk.shape[1]):
+                real_artifact, stripe, clean = chunk[s, p]
+                if real_artifact:
+                    filepath = os.path.join(root, 'real_artifacts')
+                else:
+                    filepath = os.path.join(root, 'fake_artifacts')
+                filename = f'{basename}_{start + s:04}_w{p:02}'
+                stripe_path = os.path.join(filepath, 'stripe', filename)
+                clean_path = os.path.join(filepath, 'clean', filename)
+                # Save sino as tiff and store path & min/max in dictionary
+                minmax[stripe_path] = save_rescaled_sino(stripe, sino_min,
+                                                         sino_max, stripe_path)
+                # clean may be all nan
+                if not np.isnan(clean).all():
+                    minmax[clean_path] = save_rescaled_sino(clean, sino_min,
+                                                            sino_max,
+                                                            clean_path)
     return minmax
 
 
@@ -310,8 +432,8 @@ def generate_real_data(root, hdf_file, mode, chunk_size, sample_no, no_shifts,
         hdf_file : str
             HDF5/Nexus file containing real-life data.
         mode : str
-            Type of data to generate. Must be one of 'raw', 'paired', or
-            'dynamic'.
+            Type of data to generate. Must be one of 'raw', 'paired',
+            'dynamic', or 'patch'.
         chunk_size : int
             Size of chunks to split data into. Data is chunked in axis 1.
         sample_no : int
@@ -325,6 +447,7 @@ def generate_real_data(root, hdf_file, mode, chunk_size, sample_no, no_shifts,
             Keyword arguments for processing functions.
             If mode == 'paired', kwarg 'mask' must be given.
             If mode == 'dynamic', kwarg 'frame_angles' must be given.
+            If mode == 'patch', kwargs 'mask' and 'patch_size' must be given.
     """
     file_num = int(os.path.basename(hdf_file).split('.')[0])
     for shift_no in range(no_shifts):
@@ -344,4 +467,7 @@ def generate_real_data(root, hdf_file, mode, chunk_size, sample_no, no_shifts,
             num_chunks += 1
         if num_chunks > 1:
             print(f"Re-loading & normalizing data w.r.t entire 3D sample...")
-            reload_save((402, 362), rescale_dict)
+            if mode == 'patch':
+                reload_save(kwargs['patch_size'], rescale_dict)
+            else:
+                reload_save((402, 362), rescale_dict)

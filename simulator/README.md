@@ -295,3 +295,42 @@ The following parameters affect Dynamic mode:<br>
   - `--frame-angles`
     - The number of angles that make up a sinogram, i.e. one 'frame' of a dynamic scan.
     - Default is `900`.
+
+### Patch
+This method is the same as Paired, but split sinograms into patches of a given size.<br>
+Therefore, no downsampling is applied to sinograms.<br>
+
+This method stores data in the following directory structure:<br>
+```
+root
+├── fake_artifacts
+│   ├── clean
+│   │   ├── 0000_shift00_0000_w00.tif
+│   │   ├── 0000_shift00_0000_w01.tif
+│   │   ├── 0000_shift00_0000_w02.tif
+│   │   │   ...
+│   │   ├── 0000_shift00_0001_w00.tif
+│   │   │   ...
+│   │   ├── 0000_shift01_0000_w00.tif
+│   │   │   ...
+│   │   ...
+│   └── stripe
+└── real_artifacts
+    ├── clean
+    └── stripe
+```
+It is the same as Paired mode, but for each sinogram there is a series of patches `w00`, `w01`, `w02`, ...<br>
+
+The following parameters affect Patch mode:<br>
+  - `--shifts`, `-s`
+    - The number of vertical shifts when sample was scanned. Default is `5`.
+    - All shifts are stored under the same directory.
+    - Assumes shifts are each stored under a different .nxs file, with the name incrementing by one for each shift.
+    - For example, if shift 0 was in `1000.nxs`, shift 1 will be in `1001.nxs`, shift 2 in `1002.nxs`, etc.
+  - `--mask`
+    - The path to the mask containing locations of stripes. Default is `None`.
+    - This should be a numpy file `.npy`, generated using the stripe detection method in Larix.
+    - If not given, a mask will be generated at runtime. However, this can take multiple hours.
+  - `--patch-size`
+    - The size of patches to split sinograms into. Must be a tuple. Default is `(1801, 256)`.
+    - If the sinogram does not evenly go into patches of size `patch-size`, the sinogram will be cropped.
