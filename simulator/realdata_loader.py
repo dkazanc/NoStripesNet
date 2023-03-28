@@ -214,7 +214,7 @@ def get_data(mode, data, chunk_size, chunk_num, hdf_idx, **kwargs):
     """
     if mode == 'raw':
         return get_raw_data(data)
-    elif mode in ['real', 'patch']:
+    elif mode in ['paired', 'patch']:
         if 'mask' not in kwargs:
             raise ValueError("A mask should be given.")
         # Get correct mask for current shift
@@ -222,7 +222,7 @@ def get_data(mode, data, chunk_size, chunk_num, hdf_idx, **kwargs):
         # Crop mask to correct size
         mask_idx = np.s_[:, chunk_num * chunk_size:(chunk_num+1) * chunk_size]
         mask = np.swapaxes(mask[mask_idx], 0, 1)
-        if mode == 'real':
+        if mode == 'paired':
             return get_paired_data(data, mask=mask)
         if 'patch_size' not in kwargs:
             raise ValueError("Patch size should be given.")
