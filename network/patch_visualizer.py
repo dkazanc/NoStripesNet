@@ -30,7 +30,7 @@ class PatchVisualizer:
             shift_no : int
                 Shift number to load patches from. Default is 0.
         """
-        self.root = os.path.dirname(os.path.dirname(root))  # hacky fix
+        self.root = os.path.dirname(root)  # hacky fix
         self.model = model
         self.size = full_sino_size
         self.patch_size = patch_size
