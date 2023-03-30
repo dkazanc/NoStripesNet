@@ -4,11 +4,7 @@ import random
 import numpy as np
 import torch
 from torch.utils.data import Dataset, Subset
-from h5py import File
-from mpi4py import MPI
-import multiprocessing
-from utils.data_io import loadTiff, loadHDF
-from utils.tomography import getFlatsDarks
+from utils.data_io import loadTiff
 from utils.stripe_detection import gradient_sum_tv, getMask_functional
 
 
@@ -141,135 +137,16 @@ class NewDataset(Dataset):
         self.mode = mode
 
 
-class BaseDataset(Dataset):
-    """Dataset class to load tiff images from disk and return a clean image &
-    its associated shifts.
-    Assumes data was generated according to the scripts in ../simulators.
-    Can only load data stored in the following structure:
-        <root>/
-            <sample number>/
-                clean/
-                    ....tif
-                shift00/
-                    ....tif
-                shift01/
-                    ....tif
-                ...
-    Due to this limitation, it is preferrable to use class NewDataset over
-    this class.
+class BaseDataset(NewDataset):
+    """"Temporary fix to BaseDataset/NewDataset issue.
+    In the future, NewDataset should entirely replace BaseDataset (and probably
+    be re-named to 'BaseDataset' to keep names consistent), and should be
+    usable for every possible type of dataset structure.
     """
-
     def __init__(self, root, mode, tvt, size=256, shifts=5, transform=None):
-        """Parameters:
-            root : str
-                Path to dataset root
-            mode : str
-                Mode for which data should be loaded. Should be either 'train',
-                'validate' or 'test'.
-            tvt : Tuple[int, int, int]
-                Train/validate/test split of data. Interpreted as a ratio,
-                i.e. (3, 1, 1) is equivalent to train:validate:test ratio 3:1:1
-            size : int
-                Number of sinograms per sample. Default is 256.
-            shifts : int
-                Number of shifts per sample. Default is 5.
-            transform : torch.nn.Module
-                Transformations to apply to data.
-        """
-        self.root = root
+        super().__init__(root, mode, tvt, transform)
         self.size = size
         self.shifts = shifts
-
-        # Create list of all datasets
-        # and lists for train/test/validate datasets
-        self.all_datasets = sorted(os.listdir(self.root))
-        # if there is only one dataset, set train/validate/test all to that one
-        # dataset.
-        # This will cause overfitting, but we have no choice
-        if len(self.all_datasets) == 1:
-            self.train_datasets = self.all_datasets
-            self.validate_datasets = self.all_datasets
-            self.test_datasets = self.all_datasets
-        else:
-            num_train = int((tvt[0] / sum(tvt)) * len(self.all_datasets))
-            num_validate = int((tvt[1] / sum(tvt)) * len(self.all_datasets))
-            num_test = int((tvt[2] / sum(tvt)) * len(self.all_datasets))
-            self.train_datasets = self.all_datasets[:num_train]
-            self.validate_datasets = self.all_datasets[
-                                     num_train:num_train + num_validate]
-            self.test_datasets = self.all_datasets[-num_test:]
-        # Set current dataset to the dataset that corresponds to mode
-        self.mode, self.datasets, self.filepaths = None, [], []
-        self.setMode(mode)
-
-        self.transform = transform
-
-    def __len__(self):
-        """Return length of dataset"""
-        return len(self.filepaths)
-
-    def __getitem__(self, item):
-        """For a given item in a dataset, return a tuple containing the clean
-        sinogram and all its associated shifts.
-        Parameters:
-            item : int
-                Index of sinogram to return
-        """
-        cleanPath, *shiftPaths = self.filepaths[item]
-
-        # Get clean & shifts from path
-        clean = loadTiff(cleanPath, dtype=np.float32)
-        shifts = []
-        for shiftPath in shiftPaths:
-            shifts.append(loadTiff(shiftPath, dtype=np.float32))
-
-        # Apply any transformations
-        if self.transform:
-            clean = self.transform(clean)
-            for i in range(len(shifts)):
-                shifts[i] = self.transform(shifts[i])
-        return clean, *shifts
-
-    def setMode(self, mode):
-        """Set the mode of the dataset.
-        Parameters:
-             mode : str
-                Mode to set the dataset to. Must be either 'train', 'validate'
-                or 'test'.
-        """
-        if mode == "train":
-            self.datasets = self.train_datasets
-        elif mode == "validate":
-            self.datasets = self.validate_datasets
-        elif mode == "test":
-            self.datasets = self.test_datasets
-        else:
-            raise ValueError(f"Mode should be one of 'train', 'validate' or 'test'. Instead got {mode}")
-        self.mode = mode
-        self.genFilepaths()
-
-    def genFilepaths(self):
-        """Generate list of filepaths corresponding to current mode.
-        List is created in ascending order of sinogram index.
-        Should be called everytime mode gets changed.
-        """
-        self.filepaths = []
-        for dataset in self.datasets:
-            dsPath = os.path.join(self.root, dataset)
-            # for each slice in a sample, append list containg locations of
-            # clean & shifts
-            for i in range(self.size):
-                files = []
-                fileName = f'{dataset}_clean_{i:04}.tif'
-                filePath = os.path.join(dsPath, 'clean', fileName)
-                files.append(filePath)
-                # loop through shifts
-                for shift in range(self.shifts):
-                    shiftNo = f'shift{shift:02}'
-                    fileName = f'{dataset}_{shiftNo}_{i:04}.tif'
-                    filePath = os.path.join(dsPath, shiftNo, fileName)
-                    files.append(filePath)
-                self.filepaths.append(files)
 
 
 class WindowDataset(BaseDataset):
