@@ -39,7 +39,7 @@ class BaseUNet(nn.Module):
         # Input (1, 402, 362) -> Output (64, 200, 180)
         self.down1 = nn.Conv2d(1, filters,
                                kernel_size=(4, 4), stride=(2, 2),
-                               padding=(0, 0), bias=False)
+                               padding=(0, 0), bias=True)
 
         # Input (64, 200, 180) -> Output (128, 99, 89)
         self.down2 = self.down(filters, filters * 2)
@@ -97,7 +97,7 @@ class BaseUNet(nn.Module):
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv2d(in_c, out_c,
                       kernel_size=k, stride=s,
-                      padding=p, bias=False),
+                      padding=p, bias=True),
             batchNorm
         )
 
@@ -117,7 +117,7 @@ class BaseUNet(nn.Module):
             nn.ReLU(inplace=True),
             nn.ConvTranspose2d(in_c, out_c,
                                kernel_size=k, stride=s,
-                               padding=p, bias=False),
+                               padding=p, bias=True),
             batchNorm,
             dropout
         )
@@ -193,7 +193,7 @@ class PatchUNet(nn.Module):
         # Input (512, 14, 2) -> Output (512, 7, 1)
         self.down8 = nn.Sequential(
             nn.Conv2d(filters*8, filters*8, kernel_size=(4, 4), stride=(2, 2),
-                      padding=(1, 1), bias=False),
+                      padding=(1, 1), bias=True),
             nn.ReLU(inplace=True)
         )
 
@@ -274,7 +274,7 @@ class PatchUNet(nn.Module):
         return nn.Sequential(
             nn.Conv2d(in_c, out_c,
                       kernel_size=k, stride=s,
-                      padding=p, bias=False),
+                      padding=p, bias=True),
             batchNorm,
             nn.LeakyReLU(0.2, inplace=True)
         )
@@ -294,7 +294,7 @@ class PatchUNet(nn.Module):
         return nn.Sequential(
             nn.ConvTranspose2d(in_c, out_c,
                                kernel_size=k, stride=s,
-                               padding=p, bias=False),
+                               padding=p, bias=True),
             batchNorm,
             dropout,
             nn.ReLU(inplace=True),

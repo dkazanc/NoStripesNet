@@ -49,7 +49,7 @@ class BaseDiscriminator(nn.Module):
             # Input (512, 4, 4) -> Output (1, 1, 1)
             nn.Conv2d(filters*8, 1,
                       kernel_size=(4, 4), stride=(2, 2),
-                      padding=(0, 0), bias=False),
+                      padding=(0, 0), bias=True),
         )
 
     def forward(self, x):
@@ -64,7 +64,7 @@ class BaseDiscriminator(nn.Module):
             batchNorm = nn.Identity()
         return nn.Sequential(
             nn.Conv2d(in_c, out_c, kernel_size=k, stride=s, padding=p,
-                      bias=False),
+                      bias=True),
             batchNorm,
             nn.LeakyReLU(0.2, inplace=True)
         )
@@ -90,7 +90,7 @@ class PatchDiscriminator(nn.Module):
             self.down(filters*8, filters*8, p=(1, 1)),
             self.down(filters*8, filters*8, p=(1, 1)),
             nn.Conv2d(filters*8, 1, kernel_size=(4, 4), stride=(2, 2),
-                      padding=(1, 1), bias=False)
+                      padding=(1, 1), bias=True)
         )
 
     def forward(self, x):
