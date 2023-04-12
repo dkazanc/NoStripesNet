@@ -6,32 +6,57 @@ import torch
 from torch.utils.data import Dataset, Subset
 from utils.data_io import loadTiff
 from utils.stripe_detection import gradient_sum_tv, getMask_functional
+from pathlib import Path
 
 
-class NewDataset(Dataset):
+def getPairedFilepaths(root):
+    """Given the root of a dataset, return the list of target/input pairs for
+    each item in the dataset.
+    Only works for simple, complex, and paired data.
+    Returns empty list for dynamic and raw data. This is because these modes
+    have no target images.
+    Parameters:
+        root : str
+            Path to root of dataset.
+    Returns:
+        List[Tuple[str, str]]
+            List of pairs of target & input paths.
+    """
+    target_filepaths = []
+    input_filepaths = []
+    for root, sub_dirs, images in os.walk(root):
+        sub_dirs[:] = sorted(sub_dirs)
+        if 'clean' in sub_dirs:
+            clean_path = Path(root) / 'clean'
+            clean_images = sorted(os.listdir(clean_path))
+            if 'shift00' in sub_dirs:
+                del sub_dirs[0]  # relies on sub_dirs being sorted
+                for s in range(len(sub_dirs)):
+                    target_filepaths.extend([str(clean_path/i)
+                                             for i in clean_images])
+            elif 'stripe' in sub_dirs:
+                # os.walk() takes forever if there's a large number of files
+                # so instead we prune sub_dirs and run os.listdir()
+                sub_dirs[:] = []
+                target_filepaths.extend([str(clean_path/i)
+                                         for i in clean_images])
+                stripe_path = Path(root)/'stripe'
+                stripe_images = sorted(os.listdir(stripe_path))
+                input_filepaths.extend([str(stripe_path/i)
+                                        for i in stripe_images])
+        if root.endswith('shift', 0, -2):
+            input_filepaths.extend([str(Path(root)/i)
+                                    for i in sorted(images)])
+    return list(zip(target_filepaths, input_filepaths))
+
+
+class BaseDataset(Dataset):
     """Dataset class to load tiff images from disk and return input/target
     pairs.
     Assumes data was generated according to the scripts in ../simulators.
-    Named "new" because it works for the two different directory structures:
-        1.
-            <root>/
-                clean/
-                    ....tif
-                stripe/
-                    ....tif
-        2.
-            <root>/
-                <sample number>/
-                    clean/
-                        ....tif
-                    shift00/
-                        ....tif
-                    shift01/
-                        ....tif
-                    ...
     """
 
-    def __init__(self, root, mode, tvt, transform=None):
+    def __init__(self, root, mode, tvt, size=256, shifts=5, transform=None):
         """Parameters:
             root : str
                 Path to dataset root
@@ -46,43 +71,14 @@ class NewDataset(Dataset):
         """
         self.root = root
         self.tvt = tvt
-        # Create list of all images
-        self.all_filepaths = []
-        # `root` will contain either './clean' and './stripe' or './<sample_no>'
-        sub_dirs = sorted(os.listdir(root))
-        # check for sample number
-        if '0000' in sub_dirs:
-            # Loop through each sub-directory
-            for sub_dir in sub_dirs:
-                # Get list of sub-sub-directories
-                sub_dir_path = os.path.join(root, sub_dir)
-                subsub_dirs = sorted(os.listdir(sub_dir_path))
-                # Get list of paths to target images
-                targets_path = os.path.join(sub_dir_path, subsub_dirs[0])
-                targets = sorted(os.listdir(targets_path))
-                targets = [os.path.join(targets_path, t) for t in targets]
-                # Loop through each shift
-                for shift in subsub_dirs[1:]:
-                    # Get list of paths to input images
-                    inpts_path = os.path.join(sub_dir_path, shift)
-                    inpts = sorted(os.listdir(inpts_path))
-                    inpts = [os.path.join(inpts_path, i) for i in inpts]
-                    # Add pair (target_path, input_path) to list of all paths
-                    self.all_filepaths.extend(list(zip(targets, inpts)))
-        elif 'clean' in sub_dirs and 'stripe' in sub_dirs:
-            target_paths = sorted(os.listdir(os.path.join(root, 'clean')))
-            targets = [os.path.join(root, 'clean', t) for t in target_paths]
-            inpt_paths = sorted(os.listdir(os.path.join(root, 'stripe')))
-            inpts = [os.path.join(root, 'stripe', i) for i in inpt_paths]
-            self.all_filepaths = list(zip(targets, inpts))
-        else:
-            raise RuntimeError(
-                f"Unrecognized Directory Structure: '{root}/{sub_dirs}'"
-            )
+        # Create list of all target/input image pairs
+        self.all_filepaths = getPairedFilepaths(root)
         # Set current dataset to the dataset that corresponds to mode
         self.mode, self.datasets, self.filepaths = None, [], []
         self.setMode(mode)
         self.transform = transform
+        self.size = size
+        self.shifts = shifts
 
     def __len__(self):
         """Return length of dataset."""
@@ -135,18 +131,6 @@ class NewDataset(Dataset):
                 f"Instead got {mode}"
             )
         self.mode = mode
-
-
-class BaseDataset(NewDataset):
-    """"Temporary fix to BaseDataset/NewDataset issue.
-    In the future, NewDataset should entirely replace BaseDataset (and probably
-    be re-named to 'BaseDataset' to keep names consistent), and should be
-    usable for every possible type of dataset structure.
-    """
-    def __init__(self, root, mode, tvt, size=256, shifts=5, transform=None):
-        super().__init__(root, mode, tvt, transform)
-        self.size = size
-        self.shifts = shifts
 
 
 class WindowDataset(BaseDataset):
@@ -317,13 +301,13 @@ class PairedWindowDataset(WindowDataset):
 
 class PairedFullDataset(PairedWindowDataset):
     """Dataset class to load tiff images from disk and return a thruple of
-        images: (clean, with stripes, without stripes)
-        Basically the same as PairedWindowDataset but combines windows before
-        returning them.
-        Assumes data was generated according to the scripts in ../simulators.
-        Training on windowed sinograms did not give great results, and so this
-        class might be deprecated soon.
-        """
+    images: (clean, with stripes, without stripes)
+    Basically the same as PairedWindowDataset but combines windows before
+    returning them.
+    Assumes data was generated according to the scripts in ../simulators.
+    Training on windowed sinograms did not give great results, and so this
+    class might be deprecated soon.
+    """
     def __init__(self, root, mode, tvt, windowWidth, size=256, shifts=5,
                  stripeMetric=gradient_sum_tv, transform=None):
         """Parameters:
@@ -366,7 +350,7 @@ class PairedFullDataset(PairedWindowDataset):
         return clean_full, stripe_full, plain_full
 
 
-class MaskedDataset(NewDataset):
+class MaskedDataset(BaseDataset):
     """Dataset class to load tiff images from disk and return a thruple of:
         (clean sinogram, stripey sinogram, mask)
     Can be instantiated in two modes:
@@ -413,9 +397,7 @@ class MaskedDataset(NewDataset):
             transform : torch.nn.Module
                 Transformations to apply to data.
         """
-        super().__init__(root, mode, tvt, transform=transform)
-        self.size = size
-        self.shifts = shifts
+        super().__init__(root, mode, tvt, size, shifts, transform=transform)
         self.k = kernel_width
         self.min_width = min_width
         self.max_width = max_width
@@ -475,11 +457,11 @@ class MaskedDataset(NewDataset):
                 The input sinogram containing stripes to be detected.
         """
         mask = getMask_functional(sinogram,
-                                   kernel_width=self.k,
-                                   min_width=self.min_width,
-                                   max_width=self.max_width,
-                                   threshold=self.eta,
-                                   filter_size=self.filter_size)
+                                  kernel_width=self.k,
+                                  min_width=self.min_width,
+                                  max_width=self.max_width,
+                                  threshold=self.eta,
+                                  filter_size=self.filter_size)
         return mask
 
 
