@@ -6,12 +6,14 @@ from utils.data_io import loadTiff, rescale
 from utils.tomography import reconstruct
 from utils.misc import toTensor, toNumpy
 from .visualizers import BaseGANVisualizer
+from pathlib import Path
 
 
 class PatchVisualizer:
     """Class to visualize patches of a sinogram"""
     def __init__(self, root, model, full_sino_size=(1801, 2560),
-                 patch_size=(1801, 256), block=True, sample_no=0, shift_no=0):
+                 patch_size=(1801, 256), block=True, sample_no=0, shift_no=0,
+                 mask_file=None):
         """Parameters:
             root : str
                 Path to root of dataset
@@ -30,7 +32,7 @@ class PatchVisualizer:
             shift_no : int
                 Shift number to load patches from. Default is 0.
         """
-        self.root = os.path.dirname(root)  # hacky fix
+        self.root = Path(root)
         self.model = model
         self.size = full_sino_size
         self.patch_size = patch_size
@@ -38,7 +40,23 @@ class PatchVisualizer:
         self.num_patches_w = self.size[1] // self.patch_size[1]
         self.num_patches = self.num_patches_h * self.num_patches_w
         self.block = block
-        self.prefix = f'{sample_no:04}_shift{shift_no:02}'
+        self.sample_no = sample_no
+        self.shift_no = shift_no
+        self.prefix = f'{self.sample_no:04}_shift{self.shift_no:02}'
+        if mask_file is None:
+            # If no mask file is given, assume it exists under root parent dir
+            mask_file = self.root.parent/'stripe_masks.npz'
+        try:
+            npz = np.load(mask_file)
+        except FileNotFoundError:
+            raise ValueError("No mask file given, and none found in "
+                             f"{self.root.parent/'stripe_masks.npz'}. "
+                             "Please specify a mask file.")
+        # Not a great way of getting the correct mask from npz file;
+        # assumes sample number corresponds to order in npz file
+        # (which it currently does not)
+        # TO-DO: either re-order npz file or find better way of doing this
+        self.mask = npz[npz.files[self.sample_no]]
         if torch.cuda.is_available():
             self.device = torch.device('cuda')
         else:
@@ -63,15 +81,15 @@ class PatchVisualizer:
             sub_dir = 'clean'
         else:
             sub_dir = mode
-        path = os.path.join(self.root, 'fake_artifacts', sub_dir,
-                            f'{self.prefix}_{index:04}_w{patch_no:02}')
-        if os.path.exists(path+'.tif'):
-            return loadTiff(path, normalise=False)
+        filename = f'{self.prefix}_{index:04}_w{patch_no:02}.tif'
+        base_path = self.root/f'{self.sample_no:04}'
+        patch_path = str(base_path/'fake_artifacts'/sub_dir/filename)
+        if os.path.exists(patch_path):
+            return loadTiff(patch_path, normalise=False)
         else:
             if mode == 'raw':
-                path = os.path.join(self.root, 'real_artifacts', 'stripe',
-                                    f'{self.prefix}_{index:04}_w{patch_no:02}')
-                return loadTiff(path, normalise=False)
+                patch_path = str(base_path/'real_artifacts'/'stripe'/filename)
+                return loadTiff(patch_path, normalise=False)
             else:
                 return np.zeros(self.patch_size, dtype=np.uint16)
 
@@ -95,26 +113,25 @@ class PatchVisualizer:
         if artifact_type == 'fake':
             clean = self.get_patch(index, patch_no, 'clean')
             stripe = self.get_patch(index, patch_no, 'stripe')
-            mask = np.abs(clean - stripe).astype(np.bool_, copy=False)
+            mask_patch = np.abs(clean - stripe).astype(np.bool_, copy=False)
         elif artifact_type == 'real':
             stripe = self.get_patch(index, patch_no, 'raw')
-            mask_file = os.path.join(self.root, 'real_artifacts', 'masks',
-                                     f'mask_{index:04}_w{patch_no:02}.npy')
-            if os.path.exists(mask_file):
-                mask = np.load(mask_file)
-            else:
-                # If no mask exists for this patch, then it doesn't contain a
+            mask_patch = self.mask[:, index, patch_no*self.patch_size[1]:
+                                             (patch_no+1)*self.patch_size[1]]
+            if mask_patch.sum() == 0:
+                # If mask is all zero for this patch, then it doesn't contain a
                 # stripe, so can be immediately returned as is.
                 return stripe
         else:
             raise ValueError(f"Mode must be one of ['fake', 'real']. "
                              f"Instead got '{artifact_type}'.")
-        mask = toTensor(mask, device=self.device).unsqueeze(0).type(torch.bool)
+        mask_patch = toTensor(mask_patch,
+                              device=self.device).unsqueeze(0).type(torch.bool)
         stripe = toTensor(rescale(stripe, a=-1, b=1, imin=0, imax=65535),
                           device=self.device).unsqueeze(0)
-        stripe[mask] = 0
+        stripe[mask_patch] = 0
         model_out = self.model.gen(stripe)
-        model_patch = stripe + mask * model_out
+        model_patch = stripe + mask_patch * model_out
         return rescale(toNumpy(model_patch), a=0, b=65535, imin=-1,
                        imax=1).astype(np.uint16, copy=False)
 
@@ -348,10 +365,10 @@ class PatchVisualizer:
             self.plot_reconstruction(index, 'clean', show=False)
             plt.subplot(*subplot_size, 5)
             self.plot_reconstruction(index, 'stripe', show=False)
-            plt.clim(-0.01, 0.03)
+            plt.clim(-0.05, 0.2)
             plt.subplot(*subplot_size, 6)
             self.plot_model_reconstruction(index, 'fake', show=False)
-            plt.clim(-0.1, 0.15)
+            plt.clim(-0.05, 0.2)
         plt.show(block=self.block)
 
     def plot_all_raw(self, index, recon=True):
