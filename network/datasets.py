@@ -73,6 +73,8 @@ class BaseDataset(Dataset):
         self.tvt = tvt
         # Create list of all target/input image pairs
         self.all_filepaths = getPairedFilepaths(root)
+        rng = np.random.default_rng()
+        rng.shuffle(self.all_filepaths)
         # Set current dataset to the dataset that corresponds to mode
         self.mode, self.datasets, self.filepaths = None, [], []
         self.setMode(mode)
