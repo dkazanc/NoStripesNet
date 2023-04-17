@@ -233,7 +233,7 @@ class PatchVisualizer:
                                    patches
                 'stripe' --------- sinogram with synthetic artifacts and maybe
                                    missing patches
-                'real_artifacts' - sinogram with real artifacts and no missing
+                'raw' ------------ sinogram with real artifacts and no missing
                                    patches
             show : bool
                 Whether the plot should be displayed on screen. Default is True
@@ -259,7 +259,7 @@ class PatchVisualizer:
                                    patches
                 'stripe' --------- sinogram with synthetic artifacts and maybe
                                    missing patches
-                'real_artifacts' - sinogram with real artifacts and no missing
+                'raw' ------------ sinogram with real artifacts and no missing
                                    patches
             show : bool
                 Whether the plot should be displayed on screen. Default is True
@@ -354,6 +354,7 @@ class PatchVisualizer:
             subplot_size = (2, 3)
         else:
             subplot_size = (1, 3)
+        plt.suptitle('Synthetic Stripes', size='xx-large')
         plt.subplot(*subplot_size, 1)
         self.plot_sinogram(index, 'clean', show=False)
         plt.subplot(*subplot_size, 2)
@@ -384,6 +385,7 @@ class PatchVisualizer:
             subplot_size = (2, 2)
         else:
             subplot_size = (1, 2)
+        plt.suptitle('Real-life Stripes', size='xx-large')
         plt.subplot(*subplot_size, 1)
         self.plot_sinogram(index, 'raw', show=False)
         plt.subplot(*subplot_size, 2)
