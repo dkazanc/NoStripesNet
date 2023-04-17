@@ -159,6 +159,8 @@ def get_patch_paired_data(tomogram, mask=None, patch_size=(1801, 256)):
     """
     out = []
     for s in range(tomogram.shape[0]):
+        if s % 100 == 0:
+            print(f"Processing sinogram {s}/{tomogram.shape[0]}...", end=' ')
         sino_patches = create_patches(tomogram[s], patch_size)
         mask_patches = create_patches(mask[s], patch_size)
         tmp_out = np.ndarray(len(sino_patches),
@@ -172,7 +174,7 @@ def get_patch_paired_data(tomogram, mask=None, patch_size=(1801, 256)):
                 clean = sino_patches[p]
                 # Add synthetic stripes to clean sinogram patch
                 # currently done with TomoPhantom, other methods could be used
-                stripe = add_stripes(clean, percentage=0.4, maxthickness=2,
+                stripe = add_stripes(clean, percentage=0.4, maxthickness=6,
                                      intensity_thresh=0.2, stripe_type='full',
                                      variability=0)
                 # Clip back to original range
@@ -185,6 +187,8 @@ def get_patch_paired_data(tomogram, mask=None, patch_size=(1801, 256)):
                 real_artifact = True
             tmp_out[p] = real_artifact, stripe, clean
         out.append(tmp_out)
+        if s % 100 == 0:
+            print("Done.")
     return np.asarray(out)
 
 
@@ -336,6 +340,8 @@ def save_chunk(chunk, root, mode, start=0, sample_no=0, shift_no=0):
     elif mode == 'patch':
         basename = f'{sample_no:04}_shift{shift_no:02}'
         for s in range(chunk.shape[0]):
+            if s % 100 == 0:
+                print(f"Saving sinogram {s}/{chunk.shape[0]}...", end=' ')
             # Rescale each patch w.r.t sinogram, rather than chunk
             sino_min = np.nanmin(chunk[s]['stripe'])
             sino_max = np.nanmax(chunk[s]['stripe'])
@@ -356,6 +362,8 @@ def save_chunk(chunk, root, mode, start=0, sample_no=0, shift_no=0):
                     minmax[clean_path] = save_rescaled_sino(clean, sino_min,
                                                             sino_max,
                                                             clean_path)
+            if s % 100 == 0:
+                print("Done.")
     return minmax
 
 
