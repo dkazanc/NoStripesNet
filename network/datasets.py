@@ -442,12 +442,6 @@ class MaskedDataset(BaseDataset):
         diff = np.abs(clean - stripe)
         mask[diff > diff.min()] = 1
 
-        # expand mask widths by one pixel
-        zero_prepend = [0 for _ in range(mask.ndim - 1)]
-        stripe_idxs = np.where(mask[zero_prepend, :] == 1)[0]
-        for stripe_idx in stripe_idxs:
-            mask[..., stripe_idx-1:stripe_idx+1] = 1
-
         if isinstance(clean, torch.Tensor):
             mask = torch.tensor(mask)
         return mask
