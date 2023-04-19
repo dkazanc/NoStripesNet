@@ -26,6 +26,8 @@ def getPairedFilepaths(root):
     input_filepaths = []
     for root, sub_dirs, images in os.walk(root):
         sub_dirs[:] = sorted(sub_dirs)
+        if 'real_artifacts' in root:
+            sub_dirs[:] = []
         if 'clean' in sub_dirs:
             clean_path = Path(root) / 'clean'
             clean_images = sorted(os.listdir(clean_path))
