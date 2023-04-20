@@ -68,10 +68,21 @@ class BaseGAN:
             self.device = torch.device('cpu')
         else:
             self.device = device
-        self.gen = gen.to(self.device)
-        self.disc = disc
-        if self.disc is not None:
-            self.disc.to(self.device)
+
+        if torch.cuda.device_count() > 1:
+            self.gen = nn.DataParallel(gen)
+            self.gen = self.gen.cuda()
+
+            if self.disc:
+                self.disc = nn.DataParallel(disc)
+                self.disc = self.disc.cuda()
+        else:
+            self.gen = gen.to(self.device)
+            self.disc = disc
+
+            if self.disc:
+                self.disc.to(self.device)
+
         self.lsgan = lsgan
         self.setMode(mode)
         self.lossD_values = []
