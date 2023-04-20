@@ -118,11 +118,11 @@ def get_args():
     parser.add_argument("--start", type=int, default=0,
                         help="Sample number to begin counting at (useful if "
                              "some data has already been generated).")
-    parser.add_argument('-s', "--shifts", type=int, default=5,
+    parser.add_argument('-s', "--shifts", type=int, default=1,
                         help="Number of vertical shifts for each sample. "
                              "Only affects modes 'complex', 'raw', 'paired', "
                              "and 'patch'.")
-    parser.add_argument('-p', "--shiftstep", type=int, default=2,
+    parser.add_argument('-p', "--shiftstep", type=int, default=5,
                         help="Shift step of a sample in pixels. "
                            "Only affects modes 'complex', 'raw' and 'paired'.")
     parser.add_argument('-N', "--size", type=int, default=256,

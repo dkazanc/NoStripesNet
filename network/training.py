@@ -250,7 +250,7 @@ def get_args():
                              "'mask', 'simple', 'patch', 'window', 'full'].")
     parser.add_argument('-N', "--size", type=int, default=256,
                         help="Number of sinograms per sample.")
-    parser.add_argument('-s', "--shifts", type=int, default=5,
+    parser.add_argument('-s', "--shifts", type=int, default=1,
                         help="Number of shifts per sample.")
     parser.add_argument("--tvt", type=int, default=[3, 1, 1], nargs=3,
                         help="Train/Validate/Test split, entered as a ratio.")
