@@ -397,7 +397,7 @@ if __name__ == '__main__':
                       "Models will not be saved at all!", RuntimeWarning)
     if sbst_size is not None:
         dataset = RandomSubset(dataset, sbst_size)
-    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=20)
     train(model, dataloader, epochs, vis, save_every_epoch=save_every_epoch,
           save_dir=model_save_dir, save_name=args.model,
           start_epoch=start_epoch, verbose=verbose, force=force)
