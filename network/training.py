@@ -16,6 +16,8 @@ from .patch_visualizer import PatchVisualizer
 from .datasets import PairedWindowDataset, BaseDataset, PairedFullDataset, \
     MaskedDataset, RandomSubset
 from utils.misc import Rescale
+import wandb
+
 
 
 def saveModel(model, epoch, save_dir, save_name):
@@ -168,6 +170,16 @@ def train(model, dataloader, epochs, vis, save_every_epoch=False,
                       f"Loss_G: {model.lossG.item():2.5f}, "
                       f"D(x): {model.D_x:.5f}, "
                       f"D(G(x)): {model.D_G_x1:.5f} / {model.D_G_x2:.5f}")
+            
+            # Log metrics 
+            wandb.log({
+                'Loss_D': model.lossD.item(),
+                'Loss_G': model.lossG.item(), 
+                'D(x)'  : model.D_x,
+                'D_G_X1': model.D_G_x1,
+                'D_G_X2': model.D_G_x2
+            })
+
 
         # At the end of every epoch, run through validate dataset
         print(f"Epoch [{epoch + 1}/{epochs}]: "
@@ -274,6 +286,8 @@ def get_args():
                         help="Print some extra information when running.")
     parser.add_argument('-w', "--window-width", type=int, default=25,
                         help="Width of windows that sinograms are split into.")
+    parser.add_argument('-n', '--name', type=str, default=datetime.now().strftime("%d/%m/%Y %H:%M"),
+                        help="Log run name")
     return parser.parse_args()
 
 
@@ -305,6 +319,11 @@ if __name__ == '__main__':
         transforms.ToTensor(),
         Rescale(a=-1, b=1, imin=0, imax=1)
     ])
+
+    wandb.init(project='NoStripesNet',
+        entity='nostripesnet',
+        name=args.name
+    )
 
     # Use GPU if available
     if torch.cuda.is_available():
