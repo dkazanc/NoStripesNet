@@ -84,7 +84,7 @@ def makeDirectories(dataDir, sampleNo, shifts, mode):
         os.makedirs(cleanPath, exist_ok=True)
         stripePath = os.path.join(mainPath, 'stripe')
         os.makedirs(stripePath, exist_ok=True)
-    elif mode == 'paired':
+    elif mode in ['paired', 'patch']:
         mainPath = os.path.join(dataDir, f'{sampleNo:04}')
         cleanRealArtPath = os.path.join(mainPath, 'real_artifacts', 'clean')
         stripeRealArtPath = os.path.join(mainPath, 'real_artifacts', 'stripe')
@@ -109,7 +109,8 @@ def get_args():
                                                  "generate samples of data.")
     parser.add_argument('-m', '--mode', type=str, default='complex',
                         help="Type of data to generate. Must be one of: "
-                           "['simple', 'complex', 'raw', 'paired', 'dynamic']")
+                             "['simple', 'complex', 'raw', 'paired', 'dynamic'"
+                             ", 'patch']")
     parser.add_argument('-r', '--root', type=str, default=None,
                         help="Directory to save data in.")
     parser.add_argument('-S', "--samples", type=int, default=1,
@@ -117,10 +118,11 @@ def get_args():
     parser.add_argument("--start", type=int, default=0,
                         help="Sample number to begin counting at (useful if "
                              "some data has already been generated).")
-    parser.add_argument('-s', "--shifts", type=int, default=5,
+    parser.add_argument('-s', "--shifts", type=int, default=1,
                         help="Number of vertical shifts for each sample. "
-                           "Only affects modes 'complex', 'raw' and 'paired'.")
-    parser.add_argument('-p', "--shiftstep", type=int, default=2,
+                             "Only affects modes 'complex', 'raw', 'paired', "
+                             "and 'patch'.")
+    parser.add_argument('-p', "--shiftstep", type=int, default=5,
                         help="Shift step of a sample in pixels. "
                            "Only affects modes 'complex', 'raw' and 'paired'.")
     parser.add_argument('-N', "--size", type=int, default=256,
@@ -137,23 +139,26 @@ def get_args():
                              "Only affects 'complex' mode.")
     parser.add_argument("--pipeline", type=str, default='tomo_pipeline.yml',
                         help="HTTomo YAML pipeline file for loading HDF data. "
-                           "Only affects modes 'raw', 'paired' and 'dynamic'.")
+                             "Only affects Real-life data modes.")
     parser.add_argument("--hdf-file", type=str, default=None,
                         help="Nexus file to load HDF data from. "
-                           "Only affects modes 'raw', 'paired' and 'dynamic'.")
+                             "Only affects Real-life data modes.")
     parser.add_argument('-C', "--chunk-size", type=int, default=243,
                         help="Size of chunks to load real-life data in. "
-                           "Only affects modes 'raw', 'paired' and 'dynamic'.")
+                             "Only affects Real-life data modes.")
     parser.add_argument("--flats", type=str, default=None,
                         help="Path to HDF file containing flat & dark fields. "
-                           "Only affects modes 'raw', 'paired' and 'dynamic'.")
+                             "Only affects Real-life data modes.")
     parser.add_argument("--mask", type=str, default=None,
                         help="Path to mask on stripe locations in data. "
                              "If left blank, a mask will be generated. Only "
-                             "affects 'paired' mode.")
+                             "affects modes 'paired' and 'patch'.")
     parser.add_argument("--frame-angles", type=int, default=900,
                         help="Number of angles per 'frame' of a scan. "
                              "Only affects 'dynamic' mode.")
+    parser.add_argument("--patch-size", type=int, default=[1801, 256], nargs=2,
+                        help="Size of patches to split data into. Only "
+                             "affects 'patch' mode.")
     parser.add_argument('-v', "--verbose", action="store_true",
                         help="Print some extra information when running")
     return parser.parse_args()
@@ -218,13 +223,14 @@ if __name__ == '__main__':
                                           output_path=mainPath,
                                           sampleNo=sampleNo,
                                           verbose=verbose)
-        elif args.mode in ['raw', 'paired', 'dynamic']:
+        elif args.mode in ['raw', 'paired', 'dynamic', 'patch']:
             if args.hdf_file is None:
                 raise ValueError(
                     "HDF File is None. Please include '--hdf-file' option.")
             mask = args.mask
             if mask is not None:
                 mask = np.load(mask)
+            patch_size = args.patch_size
             generate_real_data(mainPath,
                                args.hdf_file,
                                args.mode,
@@ -233,8 +239,9 @@ if __name__ == '__main__':
                                shifts,
                                args.flats,
                                mask=mask,
-                               frame_angles=angles_per_frame)
+                               frame_angles=angles_per_frame,
+                               patch_size=patch_size)
         else:
             raise ValueError(f"Option '--mode' should be one of 'simple', "
-                             f"'complex', 'raw', 'paired', 'dynamic'. "
-                             f"Instead got '{args.mode}'.")
+                             f"'complex', 'raw', 'paired', 'dynamic', 'patch'."
+                             f" Instead got '{args.mode}'.")

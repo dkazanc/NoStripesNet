@@ -10,9 +10,14 @@ import torchvision.transforms as transforms
 from .models import BaseGAN, WindowGAN, MaskedGAN, init_weights
 from .models.discriminators import *
 from .models.generators import *
-from .visualizers import BaseGANVisualizer, PairedWindowGANVisualizer, MaskedVisualizer
-from .datasets import PairedWindowDataset, BaseDataset, PairedFullDataset, MaskedDataset, RandomSubset
+from .visualizers import BaseGANVisualizer, PairedWindowGANVisualizer, \
+    MaskedVisualizer
+from .patch_visualizer import PatchVisualizer
+from .datasets import PairedWindowDataset, BaseDataset, PairedFullDataset, \
+    MaskedDataset, RandomSubset
 from utils.misc import Rescale
+import wandb
+
 
 
 def saveModel(model, epoch, save_dir, save_name):
@@ -104,33 +109,9 @@ def getTrainingData(dataset, data):
         raise ValueError(f"Dataset '{dataset}' not recognised.")
 
 
-def getVisualizer(model, dataset, size, block=True):
-    """Get the correct visualizer class for a given Dataset.
-    Parameters:
-        model : BaseGAN
-            GAN to visualize data from
-        dataset : torch.utils.data.Dataset
-            Dataset class to visualize data from
-        size : int
-            Size of sinogram
-        block : bool
-            Whether or not plots should pause execution of code.
-            Default is True.
-    """
-    if type(dataset) == BaseDataset:
-        return BaseGANVisualizer(model, dataset, size, block)
-    elif type(dataset) == PairedWindowDataset:
-        return PairedWindowGANVisualizer(model, dataset, size, block)
-    elif type(dataset) == PairedFullDataset:
-        return BaseGANVisualizer(model, dataset, size, block)
-    elif type(dataset) == MaskedDataset:
-        return MaskedVisualizer(model, dataset, size, block)
-    else:
-        raise ValueError(f"Dataset '{dataset}' not recognised.")
-
-
-def train(model, dataloader, epochs, save_every_epoch=False, save_name=None,
-          save_dir=None, start_epoch=0, verbose=True, force=False):
+def train(model, dataloader, epochs, vis, save_every_epoch=False,
+          save_name=None, save_dir=None, start_epoch=0, verbose=True,
+          force=False):
     """Train a model.
     Parameters:
         model : torch.nn.Module
@@ -139,6 +120,8 @@ def train(model, dataloader, epochs, save_every_epoch=False, save_name=None,
             DataLoader instance from which to load data
         epochs : int
             Number of epochs for which to train the model
+        vis : object
+            Visualizer to plot results of training.
         save_every_epoch : bool
             Whether the model should be saved to disk after the completion of
             each epoch. Default is False.
@@ -163,7 +146,6 @@ def train(model, dataloader, epochs, save_every_epoch=False, save_name=None,
         dataset = dataloader.dataset
     epochs += start_epoch
     num_batches = len(dataloader)
-    vis = getVisualizer(model, dataset, dataset.size, block=not force)
     start_time = datetime.now()
     print(f"Training has begun. "
           f"Epochs: {epochs}, "
@@ -188,6 +170,16 @@ def train(model, dataloader, epochs, save_every_epoch=False, save_name=None,
                       f"Loss_G: {model.lossG.item():2.5f}, "
                       f"D(x): {model.D_x:.5f}, "
                       f"D(G(x)): {model.D_G_x1:.5f} / {model.D_G_x2:.5f}")
+            
+            # Log metrics 
+            wandb.log({
+                'Loss_D': model.lossD.item(),
+                'Loss_G': model.lossG.item(), 
+                'D(x)'  : model.D_x,
+                'D_G_X1': model.D_G_x1,
+                'D_G_X2': model.D_G_x2
+            })
+
 
         # At the end of every epoch, run through validate dataset
         print(f"Epoch [{epoch + 1}/{epochs}]: "
@@ -254,11 +246,11 @@ def get_args():
     parser.add_argument('-r', "--root", type=str, default='./data',
                         help="Path to input data used in network.")
     parser.add_argument('-m', "--model", type=str, default='base',
-                        help="Type of model to train. Must be one of "
-                             "['base', 'mask', 'simple', 'window', 'full'].")
+                        help="Type of model to train. Must be one of ['base', "
+                             "'mask', 'simple', 'patch', 'window', 'full'].")
     parser.add_argument('-N', "--size", type=int, default=256,
                         help="Number of sinograms per sample.")
-    parser.add_argument('-s', "--shifts", type=int, default=5,
+    parser.add_argument('-s', "--shifts", type=int, default=1,
                         help="Number of shifts per sample.")
     parser.add_argument("--tvt", type=int, default=[3, 1, 1], nargs=3,
                         help="Train/Validate/Test split, entered as a ratio.")
@@ -294,6 +286,8 @@ def get_args():
                         help="Print some extra information when running.")
     parser.add_argument('-w', "--window-width", type=int, default=25,
                         help="Width of windows that sinograms are split into.")
+    parser.add_argument('-n', '--name', type=str, default=datetime.now().strftime("%d/%m/%Y %H:%M"),
+                        help="Log run name")
     return parser.parse_args()
 
 
@@ -326,6 +320,11 @@ if __name__ == '__main__':
         Rescale(a=-1, b=1, imin=0, imax=1)
     ])
 
+    wandb.init(project='NoStripesNet',
+        entity='nostripesnet',
+        name=args.name
+    )
+
     # Use GPU if available
     if torch.cuda.is_available():
         device = torch.device('cuda')
@@ -341,6 +340,7 @@ if __name__ == '__main__':
         model = BaseGAN(gen, disc, mode='train', learning_rate=learning_rate,
                         betas=betas, lambdaL1=lambdal1, lsgan=lsgan,
                         device=device)
+        vis = BaseGANVisualizer(model, dataset, size, not force)
     elif args.model == 'window':
         # Create dataset
         dataset = PairedWindowDataset(root=dataroot, mode='train', tvt=tvt,
@@ -353,6 +353,7 @@ if __name__ == '__main__':
         model = WindowGAN(windowWidth, gen, disc, mode='train',
                           learning_rate=learning_rate, betas=betas,
                           lambdaL1=lambdal1, lsgan=lsgan, device=device)
+        vis = PairedWindowGANVisualizer(model, dataset, size, not force)
     elif args.model == 'full':
         # Create dataset
         dataset = PairedFullDataset(root=dataroot, mode='train', tvt=tvt,
@@ -362,6 +363,7 @@ if __name__ == '__main__':
         model = BaseGAN(gen, disc, mode='train', learning_rate=learning_rate,
                         betas=betas, lambdaL1=lambdal1, lsgan=lsgan,
                         device=device)
+        vis = BaseGANVisualizer(model, dataset, size, not force)
     elif args.model == 'mask' or args.model == 'simple':
         # Create dataset
         dataset = MaskedDataset(root=dataroot, mode='train', tvt=tvt,
@@ -371,9 +373,20 @@ if __name__ == '__main__':
         model = MaskedGAN(gen, disc, mode='train', learning_rate=learning_rate,
                           betas=betas, lambdaL1=lambdal1, lsgan=lsgan,
                           device=device)
+        vis = MaskedVisualizer(model, dataset, size, not force)
+    elif args.model == 'patch':
+        dataset = MaskedDataset(root=dataroot, mode='train', tvt=tvt,
+                                size=size, shifts=num_shifts,
+                                transform=transform, simple=True)
+        disc = PatchDiscriminator()
+        gen = PatchUNet()
+        model = MaskedGAN(gen, disc, mode='train', learning_rate=learning_rate,
+                          betas=betas, lambdaL1=lambdal1, lsgan=lsgan,
+                          device=device)
+        vis = PatchVisualizer(dataroot, model, block=not force)
     else:
-        raise ValueError(f"Argument '--model' should be one of "
-                         f"['base', 'mask', 'simple', 'window', 'full']. "
+        raise ValueError(f"Argument '--model' should be one of ['base', 'mask'"
+                         f", 'simple', 'patch', 'window', 'full']. "
                          f"Instead got '{args.model}'")
 
     # Train
@@ -385,6 +398,6 @@ if __name__ == '__main__':
     if sbst_size is not None:
         dataset = RandomSubset(dataset, sbst_size)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-    train(model, dataloader, epochs, save_every_epoch=save_every_epoch,
+    train(model, dataloader, epochs, vis, save_every_epoch=save_every_epoch,
           save_dir=model_save_dir, save_name=args.model,
           start_epoch=start_epoch, verbose=verbose, force=force)

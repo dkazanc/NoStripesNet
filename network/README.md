@@ -16,6 +16,7 @@ There are several types of models that can be trained:
   - base (*full sinograms for input & output*)
   - mask (*masked sinograms for input & output*)
   - simple (*same as mask, but masks are calculated in a simpler way*)
+  - patch (*same as simple, but works on patches of sinograms*)
   - window & full (*uses windowed sinograms, left over from an old method & not used anymore*)
 
 More details about each mode can be found below.<br>
@@ -168,6 +169,12 @@ mask[mask > 0] = 1
 mask = mask.astype(np.bool_)
 ```
 The Generator class for Simple models is `BaseUNet`, and the Discriminator class is `BaseDiscriminator`.<br>
+The GAN class is `MaskedGAN`.<br>
+
+### Patch
+Patch models are identical to Simple models, but rather than working on full sinograms, the model is applied to patches.<br>
+Patches must be of size `(1801, 256)` and generated according to [Patch](../simulator/README.md#Patch) mode in data generation.<br>
+The Generator class for Path models is `PatchUNet`, and the Discriminator class is `PatchDiscriminator`<br>
 The GAN class is `MaskedGAN`.<br>
 
 ### Window and Full

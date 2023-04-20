@@ -69,7 +69,9 @@ class BaseGAN:
         else:
             self.device = device
         self.gen = gen.to(self.device)
-        self.disc = disc.to(self.device)
+        self.disc = disc
+        if self.disc is not None:
+            self.disc.to(self.device)
         self.lsgan = lsgan
         self.setMode(mode)
         self.lossD_values = []
@@ -77,6 +79,7 @@ class BaseGAN:
 
         # if training, set up loss, optimizer & scheduler functions
         if self.mode == 'train':
+            self.disc.to(self.device)
             if self.lsgan:
                 self.lossGAN = nn.MSELoss().to(self.device)
             else:

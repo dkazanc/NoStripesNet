@@ -49,7 +49,7 @@ class BaseDiscriminator(nn.Module):
             # Input (512, 4, 4) -> Output (1, 1, 1)
             nn.Conv2d(filters*8, 1,
                       kernel_size=(4, 4), stride=(2, 2),
-                      padding=(0, 0), bias=False),
+                      padding=(0, 0), bias=True),
         )
 
     def forward(self, x):
@@ -64,10 +64,37 @@ class BaseDiscriminator(nn.Module):
             batchNorm = nn.Identity()
         return nn.Sequential(
             nn.Conv2d(in_c, out_c, kernel_size=k, stride=s, padding=p,
-                      bias=False),
+                      bias=True),
             batchNorm,
             nn.LeakyReLU(0.2, inplace=True)
         )
+
+
+class PatchDiscriminator(nn.Module):
+    """Discriminator that runs on patches of size (1801, 256).
+    For use when mode == 'patch'.
+    Has a similar structure to BaseDiscriminator, but with (1, 1) padding in
+    every layer.
+    """
+    def __init__(self):
+        super(PatchDiscriminator, self).__init__()
+        filters = 64
+        self.down = BaseDiscriminator.down
+
+        self.model = nn.Sequential(
+            self.down(2, filters, p=(1, 1), batchNorm=False),
+            self.down(filters, filters*2, p=(1, 1)),
+            self.down(filters*2, filters*4, p=(1, 1)),
+            self.down(filters*4, filters*8, p=(1, 1)),
+            self.down(filters*8, filters*8, p=(1, 1)),
+            self.down(filters*8, filters*8, p=(1, 1)),
+            self.down(filters*8, filters*8, p=(1, 1)),
+            nn.Conv2d(filters*8, 1, kernel_size=(4, 4), stride=(2, 2),
+                      padding=(1, 1), bias=True)
+        )
+
+    def forward(self, x):
+        return self.model(x)
 
 
 class WindowDiscriminator(nn.Module):

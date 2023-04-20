@@ -1,16 +1,16 @@
 #!/bin/bash
 # Parameters (for full description of each parameter, see ../network/README.md)
 root="./data" # directory where input data is stored
-model="mask" # type of model to train. must be one of 'base', 'mask', 'simple', 'window' or 'full'
+model="patch" # type of model to train. must be one of 'base', 'mask', 'simple', 'patch', 'window' or 'full'
 size=256 # number of sinograms per sample
-shifts=5 # number of shifts in vertical height per sample
+shifts=1 # number of shifts in vertical height per sample
 batchsize=16 # batch size to load data in
 epochs=1 # number of epochs
 lr=0.0002 # learning rate
 beta1=0.5 # beta 1 for adam optimizer
 beta2=0.999 # beta 2 for adam optimizer
 lambda=100 # weight for L1 loss in generator
-savedir="./images" # directory in which to save the models during training
+savedir="./pretrained_models" # directory in which to save the models during training
 width=25 # width of windows
 # Other parameters, such as --lsgan, --subset, --metrics, etc. must be added to the commands below
 
