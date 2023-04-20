@@ -70,17 +70,16 @@ class BaseGAN:
             self.device = device
 
         if torch.cuda.device_count() > 1:
-            self.gen = nn.DataParallel(gen)
-            self.gen = self.gen.cuda()
+            self.gen = nn.DataParallel(gen).cuda()
+            self.disc = disc
 
-            if self.disc:
-                self.disc = nn.DataParallel(disc)
-                self.disc = self.disc.cuda()
+            if self.disc is not None:
+                self.disc = nn.DataParallel(disc).cuda()
         else:
             self.gen = gen.to(self.device)
             self.disc = disc
 
-            if self.disc:
+            if self.disc is not None:
                 self.disc.to(self.device)
 
         self.lsgan = lsgan
