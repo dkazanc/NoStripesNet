@@ -43,6 +43,23 @@ class PatchVisualizer:
         self.sample_no = sample_no
         self.shift_no = shift_no
         self.prefix = f'{self.sample_no:04}_shift{self.shift_no:02}'
+        self.base_path = self.root/f'{self.sample_no:04}'
+        # Get list of indexes of sinograms with no real artifacts,
+        # and list of indexes of sinograms with at least one real artifact
+        clean_path = self.base_path/'fake_artifacts'/'clean'
+        all_clean = list(clean_path.glob('*.tif'))
+        max_idx = int(str(max(all_clean)).split('_')[-2])
+        self.clean_idxs = []
+        self.stripe_idxs = []
+        for idx in range(max_idx):
+            for p in range(self.num_patches):
+                fname = clean_path/f'{self.prefix}_{idx:04}_w{p:02}.tif'
+                if not fname.exists():
+                    self.stripe_idxs.append(idx)
+                    break
+            else:
+                self.clean_idxs.append(idx)
+        # Get mask
         if mask_file is None:
             # If no mask file is given, assume it exists under root parent dir
             mask_file = self.root.parent/'stripe_masks.npz'
@@ -54,8 +71,6 @@ class PatchVisualizer:
                              "Please specify a mask file.")
         # Not a great way of getting the correct mask from npz file;
         # assumes sample number corresponds to order in npz file
-        # (which it currently does not)
-        # TO-DO: either re-order npz file or find better way of doing this
         self.mask = npz[npz.files[self.sample_no]]
         if torch.cuda.is_available():
             self.device = torch.device('cuda')
@@ -354,7 +369,7 @@ class PatchVisualizer:
             subplot_size = (2, 3)
         else:
             subplot_size = (1, 3)
-        fig = plt.figure(figsize=(12,8))
+        fig = plt.figure(figsize=(12, 8))
         plt.suptitle('Synthetic Stripes', size='xx-large')
         plt.subplot(*subplot_size, 1)
         self.plot_sinogram(index, 'clean', show=False)
@@ -387,7 +402,7 @@ class PatchVisualizer:
             subplot_size = (2, 2)
         else:
             subplot_size = (1, 2)
-        fig = plt.figure(figsize=(12,8))
+        fig = plt.figure(figsize=(12, 8))
         plt.suptitle('Real-life Stripes', size='xx-large')
         plt.subplot(*subplot_size, 1)
         self.plot_sinogram(index, 'raw', show=False)
@@ -409,7 +424,7 @@ class PatchVisualizer:
         The name is not accurate to its function; it's only called `plot_one`
          to keep consistency with the other visualizer APIs.
         """
-        sino_idx = np.random.randint(0, 2160)
+        sino_idx = np.random.choice(self.clean_idxs)
         fig = self.plot_all(sino_idx, recon=True)
         return fig
 
@@ -419,7 +434,7 @@ class PatchVisualizer:
         `plot_real_vs_fake_batch` to keep consistency with the other visualizer
         APIs.
         """
-        sino_idx = np.random.randint(0, 2160)
+        sino_idx = np.random.choice(self.stripe_idxs)
         fig = self.plot_all_raw(sino_idx, recon=True)
         return fig
 
@@ -429,6 +444,6 @@ class PatchVisualizer:
         `plot_real_vs_fake_recon` to keep consistency with the other visualizer
         APIs.
         """
-        sino_idx = np.random.randint(0, 2160)
+        sino_idx = np.random.choice(self.stripe_idxs)
         fig = self.plot_all_raw(sino_idx, recon=True)
         return fig
