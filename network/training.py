@@ -224,10 +224,22 @@ def train(model, dataloader, epochs, vis, save_every_epoch=False,
     finish_time = datetime.now()
     print(f"Total Training time: {finish_time - start_time}")
     try:
-        vis.plot_losses()
-        vis.plot_one()
-        vis.plot_real_vs_fake_batch()
-        vis.plot_real_vs_fake_recon()
+        
+        fig_syn = vis.plot_one()
+        wandb.log({"Synthetic Stripes": fig_syn})
+        if verbose:
+            print('logged Synthetic stripes')
+
+        fig_rf = vis.plot_real_vs_fake_batch()
+        wandb.log({"Last batch plot": fig_rf})
+        if verbose:
+            print('logged last batch')
+
+        fig_rf_recon = vis.plot_real_vs_fake_recon()
+        wandb.log({"Last Batch Recon": fig_rf_recon})
+        if verbose:
+            print('logged Last batch recon')
+
     except OSError as e:
         # if plotting causes OoM, don't crash so model can still be saved
         print(e)

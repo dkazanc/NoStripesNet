@@ -354,6 +354,7 @@ class PatchVisualizer:
             subplot_size = (2, 3)
         else:
             subplot_size = (1, 3)
+        fig = plt.figure(figsize=(12,8))
         plt.suptitle('Synthetic Stripes', size='xx-large')
         plt.subplot(*subplot_size, 1)
         self.plot_sinogram(index, 'clean', show=False)
@@ -370,7 +371,8 @@ class PatchVisualizer:
             plt.subplot(*subplot_size, 6)
             self.plot_model_reconstruction(index, 'fake', show=False)
             plt.clim(-0.05, 0.2)
-        plt.show(block=self.block)
+        # plt.show(block=self.block)
+        return fig
 
     def plot_all_raw(self, index, recon=True):
         """Plot a raw sinogram and the output of the model on this sinogram,
@@ -385,6 +387,7 @@ class PatchVisualizer:
             subplot_size = (2, 2)
         else:
             subplot_size = (1, 2)
+        fig = plt.figure(figsize=(12,8))
         plt.suptitle('Real-life Stripes', size='xx-large')
         plt.subplot(*subplot_size, 1)
         self.plot_sinogram(index, 'raw', show=False)
@@ -395,7 +398,8 @@ class PatchVisualizer:
             self.plot_reconstruction(index, 'raw', show=False)
             plt.subplot(*subplot_size, 4)
             self.plot_model_reconstruction(index, 'real', show=False)
-        plt.show(block=self.block)
+        # plt.show(block=self.block)
+        return fig
 
     def plot_losses(self):
         return BaseGANVisualizer.plot_losses(self)
@@ -406,7 +410,8 @@ class PatchVisualizer:
          to keep consistency with the other visualizer APIs.
         """
         sino_idx = np.random.randint(0, 2160)
-        self.plot_all(sino_idx, recon=True)
+        fig = self.plot_all(sino_idx, recon=True)
+        return fig
 
     def plot_real_vs_fake_batch(self):
         """Choose a random sinogram index and call `plot_all_raw()`.
@@ -415,7 +420,8 @@ class PatchVisualizer:
         APIs.
         """
         sino_idx = np.random.randint(0, 2160)
-        self.plot_all_raw(sino_idx, recon=True)
+        fig = self.plot_all_raw(sino_idx, recon=True)
+        return fig
 
     def plot_real_vs_fake_recon(self):
         """Choose a random sinogram index and call `plot_all_raw()`.
@@ -424,4 +430,5 @@ class PatchVisualizer:
         APIs.
         """
         sino_idx = np.random.randint(0, 2160)
-        self.plot_all_raw(sino_idx, recon=True)
+        fig = self.plot_all_raw(sino_idx, recon=True)
+        return fig
