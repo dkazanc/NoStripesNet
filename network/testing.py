@@ -16,7 +16,8 @@ from utils.misc import Rescale
 from .visualizers import BaseGANVisualizer, PairedWindowGANVisualizer, \
     MaskedVisualizer
 from .patch_visualizer import PatchVisualizer
-
+import matplotlib.pyplot as plt
+import wandb
 
 def createModelParams(model, path, device):
     """Initialise parameters for a model.
@@ -61,7 +62,7 @@ def accuracy(predictions, labels):
 
 
 def test(model, dataloader, metrics, vis, display_each_batch=False,
-         verbose=True, visual_only=False):
+         verbose=True, visual_only=False, run = None):
     """Train a model.
     Parameters:
         model : torch.nn.Module
@@ -146,19 +147,32 @@ def test(model, dataloader, metrics, vis, display_each_batch=False,
         print("Total mean scores for all batches:")
         for key in overall_mean_scores:
             print(f"\t\t{key: <23}: {np.mean(overall_mean_scores[key])}")
+            if run:
+                run.summary[key] = np.mean(overall_mean_scores[key])
         print("Overall Accuracy for discriminator:")
         print(f"\tTotal : {overall_accuracies['total'] / len(dataloader)}"
               f"\n\tFake  : {overall_accuracies['fake'] / len(dataloader)}" 
               f"\n\tReal  : {overall_accuracies['real'] / len(dataloader)}")
+        if run:
+            run.summary[f"Total"] = total_accuracy
+            run.summary[f"Fake"] = fake_accuracy
+            run.summary[f"Real"] = real_accuracy
+            run.summary.update()
+            print("Mertics logged")
     finish_time = datetime.now()
     print(f"Total test time: {finish_time - start_time}")
-    vis.plot_one()
+    fig_syn = vis.plot_one()
+    fig_syn.savefig('synth_stripes.png', dpi=200)
+
     if verbose:
         print("Plotting last batch...")
-    vis.plot_real_vs_fake_batch()
+    fig_rf = vis.plot_real_vs_fake_batch()
+    fig_rf.savefig('last_batch.png', dpi=200)
+
     if verbose:
         print("Reconstructing last batch...")
-    vis.plot_real_vs_fake_recon()
+    fig_rf_recon = vis.plot_real_vs_fake_recon()
+    fig_rf_recon.savefig('last_recon.png', dpi=200)
 
 
 def get_args():
@@ -190,6 +204,8 @@ def get_args():
                         help="Print some extra information when running.")
     parser.add_argument('-w', "--window-width", type=int, default=25,
                         help="Width of windows that sinograms are split into.")
+    parser.add_argument('-n', '--name', type=str, default=None,
+                    help="W&b training log run name")
     return parser.parse_args()
 
 
@@ -205,6 +221,13 @@ if __name__ == '__main__':
     num_shifts = args.shifts
     batch_size = args.batch_size
     tvt = args.tvt
+
+    api = wandb.Api()
+    runs = api.runs("nostripesnet/NoStripesNet")
+
+    for rns in runs:
+        if rns.name == args.name:
+            run = api.run(f"/nostripesnet/NoStripesNet/{rns.id}")
 
     if args.metrics == 'all':
         ms = test_metrics
@@ -282,6 +305,6 @@ if __name__ == '__main__':
 
     # Test
     createModelParams(model, model_file, device)
-    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=20)
     test(model, dataloader, ms, vis, display_each_batch=display_each_batch,
-         verbose=verbose, visual_only=visual)
+         verbose=verbose, visual_only=visual, run = run)
