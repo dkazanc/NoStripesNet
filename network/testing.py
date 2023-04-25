@@ -154,9 +154,9 @@ def test(model, dataloader, metrics, vis, display_each_batch=False,
               f"\n\tFake  : {overall_accuracies['fake'] / len(dataloader)}" 
               f"\n\tReal  : {overall_accuracies['real'] / len(dataloader)}")
         if run:
-            run.summary[f"Total"] = total_accuracy
-            run.summary[f"Fake"] = fake_accuracy
-            run.summary[f"Real"] = real_accuracy
+            run.summary[f"Total"] = overall_accuracies['total'] / len(dataloader)
+            run.summary[f"Fake"] = overall_accuracies['fake'] / len(dataloader)
+            run.summary[f"Real"] = overall_accuracies['real'] / len(dataloader)
             run.summary.update()
             print("Mertics logged")
     finish_time = datetime.now()
