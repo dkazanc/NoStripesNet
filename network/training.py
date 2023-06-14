@@ -109,7 +109,7 @@ def getTrainingData(dataset, data):
         raise ValueError(f"Dataset '{dataset}' not recognised.")
 
 
-def train(model, dataloader, epochs, vis, save_every_epoch=False,
+def train(model, dataloader, epochs, vis, save_every=None,
           save_name=None, save_dir=None, start_epoch=0, verbose=True,
           force=False):
     """Train a model.
@@ -174,7 +174,7 @@ def train(model, dataloader, epochs, vis, save_every_epoch=False,
             # Log metrics 
             wandb.log({
                 'Loss_D': model.lossD.item(),
-                'Loss_G': model.lossG.item(), 
+                'Loss_G': model.lossG.item(),
                 'D(x)'  : model.D_x,
                 'D_G_X1': model.D_G_x1,
                 'D_G_X2': model.D_G_x2
@@ -213,7 +213,8 @@ def train(model, dataloader, epochs, vis, save_every_epoch=False,
         print(f"Epoch [{epoch + 1}/{epochs}]: Validation finished.")
 
         # At the end of every epoch, save model state
-        if save_every_epoch and save_dir is not None and save_name is not None:
+        if save_every is not None and epoch % save_every == 0 and \
+                save_dir is not None and save_name is not None:
             saveModel(model, epoch, save_dir, save_name)
             print(f"Epoch [{epoch+1}/{epochs}]: "
                   f"Model '{save_name}_{epoch}' saved to '{save_dir}'")
@@ -243,9 +244,9 @@ def train(model, dataloader, epochs, vis, save_every_epoch=False,
     # except OSError as e:
     #     # if plotting causes OoM, don't crash so model can still be saved
     #     print(e)
-    # Save models if user desires and save_every_epoch is False
-    if not save_every_epoch and (force
-                                 or input("Save model? (y/[n]): ") == 'y'):
+    # Save models if user desires and model wasn't saved in last epoch
+    if (save_every is None or (epochs - 1) % save_every != 0) and \
+            (force or input("Save model? (y/[n]): ") == 'y'):
         saveModel(model, epochs, save_dir, save_name)
         print(f"Training finished: "
               f"Model '{save_name}_{epochs}' saved to '{save_dir}'")
@@ -292,8 +293,8 @@ def get_args():
     parser.add_argument("--force", action="store_true",
                         help="Force the script to keep running, regardless of "
                              "any waits/pauses.")
-    parser.add_argument("--save-every-epoch", action="store_true",
-                        help="Save model at the end of every epoch.")
+    parser.add_argument("--save-every", type=int, default=None,
+                        help="Interval (in epochs) at which to save model.")
     parser.add_argument('-v', "--verbose", action="store_true",
                         help="Print some extra information when running.")
     parser.add_argument('-w', "--window-width", type=int, default=25,
@@ -322,7 +323,7 @@ if __name__ == '__main__':
     sbst_size = args.subset
 
     lsgan = args.lsgan
-    save_every_epoch = args.save_every_epoch
+    save_every = args.save_every
     force = args.force
     verbose = args.verbose
 
@@ -403,13 +404,13 @@ if __name__ == '__main__':
 
     # Train
     start_epoch = createModelParams(model, model_file, device)
-    if save_every_epoch and model_save_dir is None:
-        warnings.warn("Argument --save-every-epoch is True, "
+    if save_every is not None and model_save_dir is None:
+        warnings.warn("Argument --save-every given, "
                       "but a save directory has not been specified. "
                       "Models will not be saved at all!", RuntimeWarning)
     if sbst_size is not None:
         dataset = RandomSubset(dataset, sbst_size)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=20)
-    train(model, dataloader, epochs, vis, save_every_epoch=save_every_epoch,
+    train(model, dataloader, epochs, vis, save_every=save_every,
           save_dir=model_save_dir, save_name=args.model,
           start_epoch=start_epoch, verbose=verbose, force=force)
