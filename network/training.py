@@ -412,5 +412,5 @@ if __name__ == '__main__':
         dataset = RandomSubset(dataset, sbst_size)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=20)
     train(model, dataloader, epochs, vis, save_every=save_every,
-          save_dir=model_save_dir, save_name=args.model,
+          save_dir=model_save_dir, save_name=args.name,
           start_epoch=start_epoch, verbose=verbose, force=force)
