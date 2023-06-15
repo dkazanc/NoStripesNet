@@ -17,7 +17,9 @@ from .datasets import PairedWindowDataset, BaseDataset, PairedFullDataset, \
     MaskedDataset, RandomSubset
 from utils.misc import Rescale
 import wandb
-
+from torch.utils.data import DistributedSampler
+from socket import gethostname
+import torch.distributed as dist
 
 
 def saveModel(model, epoch, save_dir, save_name):
@@ -212,46 +214,49 @@ def train(model, dataloader, epochs, vis, save_every=None,
         model.schedulerD.step(np.median(validation_lossesD))
         print(f"Epoch [{epoch + 1}/{epochs}]: Validation finished.")
 
-        # At the end of every epoch, save model state
-        if save_every is not None and epoch % save_every == 0 and \
-                save_dir is not None and save_name is not None:
-            saveModel(model, epoch, save_dir, save_name)
-            print(f"Epoch [{epoch+1}/{epochs}]: "
-                  f"Model '{save_name}_{epoch}' saved to '{save_dir}'")
-        else:
-            if verbose:
-                print(f"Epoch [{epoch+1}/{epochs}]: Model not saved.")
+        if rank == 0:
+            # At the end of every epoch, save model state
+            if save_every is not None and epoch % save_every == 0 and \
+                    save_dir is not None and save_name is not None:
+                saveModel(model, epoch, save_dir, save_name)
+                print(f"Epoch [{epoch+1}/{epochs}]: "
+                      f"Model '{save_name}_{epoch}' saved to '{save_dir}'")
+            else:
+                if verbose:
+                    print(f"Epoch [{epoch+1}/{epochs}]: Model not saved.")
     # Once training has finished, plot some data and save model state
-    finish_time = datetime.now()
-    print(f"Total Training time: {finish_time - start_time}")
-    # try:
-    #
-    #     fig_syn = vis.plot_one()
-    #     wandb.log({"Synthetic Stripes": fig_syn})
-    #     if verbose:
-    #         print('logged Synthetic stripes')
-    #
-    #     fig_rf = vis.plot_real_vs_fake_batch()
-    #     wandb.log({"Last batch plot": fig_rf})
-    #     if verbose:
-    #         print('logged last batch')
-    #
-    #     fig_rf_recon = vis.plot_real_vs_fake_recon()
-    #     wandb.log({"Last Batch Recon": fig_rf_recon})
-    #     if verbose:
-    #         print('logged Last batch recon')
-    #
-    # except OSError as e:
-    #     # if plotting causes OoM, don't crash so model can still be saved
-    #     print(e)
-    # Save models if user desires and model wasn't saved in last epoch
-    if (save_every is None or (epochs - 1) % save_every != 0) and \
-            (force or input("Save model? (y/[n]): ") == 'y'):
-        saveModel(model, epochs, save_dir, save_name)
-        print(f"Training finished: "
-              f"Model '{save_name}_{epochs}' saved to '{save_dir}'")
-    else:
-        print("Training finished: Model not saved.")
+    
+    if rank == 0:
+        finish_time = datetime.now()
+        print(f"Total Training time: {finish_time - start_time}")
+        # try:
+        #
+        #     fig_syn = vis.plot_one()
+        #     wandb.log({"Synthetic Stripes": fig_syn})
+        #     if verbose:
+        #         print('logged Synthetic stripes')
+        #
+        #     fig_rf = vis.plot_real_vs_fake_batch()
+        #     wandb.log({"Last batch plot": fig_rf})
+        #     if verbose:
+        #         print('logged last batch')
+        #
+        #     fig_rf_recon = vis.plot_real_vs_fake_recon()
+        #     wandb.log({"Last Batch Recon": fig_rf_recon})
+        #     if verbose:
+        #         print('logged Last batch recon')
+        #
+        # except OSError as e:
+        #     # if plotting causes OoM, don't crash so model can still be saved
+        #     print(e)
+        # Save models if user desires and model wasn't saved in last epoch
+        if (save_every is None or (epochs - 1) % save_every != 0) and \
+                (force or input("Save model? (y/[n]): ") == 'y'):
+            saveModel(model, epochs, save_dir, save_name)
+            print(f"Training finished: "
+                  f"Model '{save_name}_{epochs}' saved to '{save_dir}'")
+        else:
+            print("Training finished: Model not saved.")
 
 
 def get_args():
@@ -301,6 +306,8 @@ def get_args():
                         help="Width of windows that sinograms are split into.")
     parser.add_argument('-n', '--name', type=str, default=datetime.now().strftime("%d/%m/%Y %H:%M"),
                         help="Log run name")
+    parser.add_argument("--ddp", action="store_true",
+                        help="Train on Multiple nodes Multiple GPUs")
     return parser.parse_args()
 
 
@@ -326,6 +333,25 @@ if __name__ == '__main__':
     save_every = args.save_every
     force = args.force
     verbose = args.verbose
+    ddp = args.ddp
+    
+    rank = 0
+    if ddp :
+        world_size    = int(os.environ["WORLD_SIZE"])
+        rank          = int(os.environ["SLURM_PROCID"])
+        gpus_per_node = int(os.environ["SLURM_GPUS_ON_NODE"])
+        assert gpus_per_node == torch.cuda.device_count()
+        print(f"Rank {rank} of {world_size} on {gethostname()}" \
+            f" {gpus_per_node} allocated GPUs per node.", flush=True)
+        print('Group initialization')
+        dist.init_process_group("nccl", rank=rank, world_size=world_size)
+        if rank == 0:
+            print(f"Group initialized: {dist.is_initialized()}", flush=True)
+        else: 
+            print(f'Group initilized from rank {rank}')
+
+        local_rank = torch.distributed.get_rank()
+        print(f"host: {gethostname()}, rank: {rank}, local_rank: {local_rank}")
 
     # mean: 0.1780845671892166, std: 0.02912825345993042
     transform = transforms.Compose([
@@ -395,7 +421,7 @@ if __name__ == '__main__':
         gen = PatchUNet()
         model = MaskedGAN(gen, disc, mode='train', learning_rate=learning_rate,
                           betas=betas, lambdaL1=lambdal1, lsgan=lsgan,
-                          device=device)
+                          device=device, ddp=ddp)
         vis = PatchVisualizer(dataroot, model, block=not force)
     else:
         raise ValueError(f"Argument '--model' should be one of ['base', 'mask'"
@@ -410,7 +436,15 @@ if __name__ == '__main__':
                       "Models will not be saved at all!", RuntimeWarning)
     if sbst_size is not None:
         dataset = RandomSubset(dataset, sbst_size)
-    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=20)
+    
+    if ddp:
+        sampler = DistributedSampler(dataset, num_replicas=world_size, rank=rank)
+        dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=int(os.environ["SLURM_CPUS_PER_TASK"]), sampler=sampler)
+    else:
+        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=int(os.cpu_count()))
+
     train(model, dataloader, epochs, vis, save_every=save_every,
           save_dir=model_save_dir, save_name=args.name,
           start_epoch=start_epoch, verbose=verbose, force=force)
+    
+    dist.destroy_process_group()
