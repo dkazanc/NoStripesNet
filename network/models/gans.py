@@ -10,7 +10,7 @@ And the following GitHub repositories:
 import torch
 import torch.nn as nn
 import torch.optim as optim
-
+from torch.nn.parallel import DistributedDataParallel as DDP
 
 # Weights initialization function
 def init_weights(m):
@@ -41,7 +41,7 @@ def init_weights(m):
 class BaseGAN:
     """Basic GAN model used to train a Generator and Discriminator."""
     def __init__(self, gen, disc=None, mode='train', learning_rate=0.01,
-                 betas=(0.5, 0.999), lambdaL1=100.0, lsgan=False, device=None):
+                 betas=(0.5, 0.999), lambdaL1=100.0, lsgan=False, device=None, ddp=False):
         """Parameters:
             gen : torch.nn.Module
                 The Generator model
@@ -69,12 +69,20 @@ class BaseGAN:
         else:
             self.device = device
 
-        if torch.cuda.device_count() > 1:
-            self.gen = nn.DataParallel(gen).cuda()
+        if ddp:
+            disc = disc.cuda()
+            disc = torch.nn.DataParallel(disc)
+            self.disc = DDP(disc)
+            gen = gen.cuda()
+            gen = torch.nn.DataParallel(gen)
+            self.gen = DDP(gen)
+
+        elif torch.cuda.device_count() > 1:
+            self.gen = nn.parallel.DataParallel(gen).cuda()
             self.disc = disc
 
             if self.disc is not None:
-                self.disc = nn.DataParallel(disc).cuda()
+                self.disc = nn.parallel.DataParallel(disc).cuda()
         else:
             self.gen = gen.to(self.device)
             self.disc = disc
