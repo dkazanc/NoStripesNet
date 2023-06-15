@@ -113,7 +113,7 @@ def getTrainingData(dataset, data):
 
 def train(model, dataloader, epochs, vis, save_every=None,
           save_name=None, save_dir=None, start_epoch=0, verbose=True,
-          force=False):
+          force=False, rank=0, val=False):
     """Train a model.
     Parameters:
         model : torch.nn.Module
@@ -164,66 +164,65 @@ def train(model, dataloader, epochs, vis, save_every=None,
             model.preprocess(inpt, target)
             # Run forward and backward passes
             model.run_passes()
-            # Print out some useful info
-            if verbose:
-                print(f"\tEpoch [{epoch + 1}/{epochs}], "
-                      f"Batch [{i + 1}/{num_batches}], "
-                      f"Loss_D: {model.lossD.item():2.5f}, "
-                      f"Loss_G: {model.lossG.item():2.5f}, "
-                      f"D(x): {model.D_x:.5f}, "
-                      f"D(G(x)): {model.D_G_x1:.5f} / {model.D_G_x2:.5f}")
-            
-            # Log metrics 
-            wandb.log({
-                'Loss_D': model.lossD.item(),
-                'Loss_G': model.lossG.item(),
-                'D(x)'  : model.D_x,
-                'D_G_X1': model.D_G_x1,
-                'D_G_X2': model.D_G_x2
-            })
-
-
-        # At the end of every epoch, run through validate dataset
-        print(f"Epoch [{epoch + 1}/{epochs}]: "
-              f"Training finished. Validating model...")
-        dataloader.dataset.setMode('validate')
-        model.setMode('validate')
-        num_batches = len(dataloader)
-        validation_lossesG = torch.Tensor(num_batches)
-        validation_lossesD = torch.Tensor(num_batches)
-        for i, data in enumerate(dataloader):
-            inpt, target = getTrainingData(dataset, data)
-            # Pre-process data
-            model.preprocess(inpt, target)
-            # Run forward and backward passes
-            model.run_passes()
-            # Print out some useful info
-            if verbose:
-                print(f"\tEpoch [{epoch + 1}/{epochs}], "
-                      f"Batch [{i + 1}/{num_batches}], "
-                      f"Loss_D: {model.lossD.item():2.5f}, "
-                      f"Loss_G: {model.lossG.item():2.5f}, "
-                      f"D(x): {model.D_x:.5f}, "
-                      f"D(G(x)): {model.D_G_x1:.5f} / {model.D_G_x2:.5f}")
-            # Collate validation losses
-            validation_lossesG[i] = model.lossG.item()
-            validation_lossesD[i] = model.lossD.item()
-        # Step scheduler with median of all validation losses
-        # (avoids outliers at start of validation)
-        model.schedulerG.step(np.median(validation_lossesG))
-        model.schedulerD.step(np.median(validation_lossesD))
-        print(f"Epoch [{epoch + 1}/{epochs}]: Validation finished.")
-
-        if rank == 0:
-            # At the end of every epoch, save model state
-            if save_every is not None and epoch % save_every == 0 and \
-                    save_dir is not None and save_name is not None:
-                saveModel(model, epoch, save_dir, save_name)
-                print(f"Epoch [{epoch+1}/{epochs}]: "
-                      f"Model '{save_name}_{epoch}' saved to '{save_dir}'")
-            else:
+        # Print out some useful info
+        if verbose:
+            print(f"\tEpoch [{epoch + 1}/{epochs}], "
+                f"Batch [{i + 1}/{num_batches}], "
+                f"Loss_D: {model.lossD.item():2.5f}, "
+                f"Loss_G: {model.lossG.item():2.5f}, "
+                f"D(x): {model.D_x:.5f}, "
+                f"D(G(x)): {model.D_G_x1:.5f} / {model.D_G_x2:.5f}")
+        
+        # Log metrics 
+        wandb.log({
+            'Loss_D': model.lossD.item(),
+            'Loss_G': model.lossG.item(),
+            'D(x)'  : model.D_x,
+            'D_G_X1': model.D_G_x1,
+            'D_G_X2': model.D_G_x2
+        })
+ 
+        if val:
+            # At the end of every epoch, run through validate dataset
+            print(f"Epoch [{epoch + 1}/{epochs}]: "
+                f"Training finished. Validating model...")
+            dataloader.dataset.setMode('validate')
+            model.setMode('validate')
+            num_batches = len(dataloader)
+            validation_lossesG = torch.Tensor(num_batches)
+            validation_lossesD = torch.Tensor(num_batches)
+            for i, data in enumerate(dataloader):
+                inpt, target = getTrainingData(dataset, data)
+                # Pre-process data
+                model.preprocess(inpt, target)
+                # Run forward and backward passes
+                model.run_passes()
+                # Print out some useful info
                 if verbose:
-                    print(f"Epoch [{epoch+1}/{epochs}]: Model not saved.")
+                    print(f"\tEpoch [{epoch + 1}/{epochs}], "
+                        f"Batch [{i + 1}/{num_batches}], "
+                        f"Loss_D: {model.lossD.item():2.5f}, "
+                        f"Loss_G: {model.lossG.item():2.5f}, "
+                        f"D(x): {model.D_x:.5f}, "
+                        f"D(G(x)): {model.D_G_x1:.5f} / {model.D_G_x2:.5f}")
+                # Collate validation losses
+                validation_lossesG[i] = model.lossG.item()
+                validation_lossesD[i] = model.lossD.item()
+            # Step scheduler with median of all validation losses
+            # (avoids outliers at start of validation)
+            model.schedulerG.step(np.median(validation_lossesG))
+            model.schedulerD.step(np.median(validation_lossesD))
+            print(f"Epoch [{epoch + 1}/{epochs}]: Validation finished.")
+
+        # At the end of every epoch, save model state
+        if rank == 0 and  save_every is not None and epoch % save_every == 0 and \
+                save_dir is not None and save_name is not None:
+            saveModel(model, epoch, save_dir, save_name)
+            print(f"Epoch [{epoch+1}/{epochs}]: "
+                    f"Model '{save_name}_{epoch}' saved to '{save_dir}'")
+        else:
+            if verbose:
+                print(f"Epoch [{epoch+1}/{epochs}]: Model not saved.")
     # Once training has finished, plot some data and save model state
     
     if rank == 0:
@@ -359,10 +358,13 @@ if __name__ == '__main__':
         Rescale(a=-1, b=1, imin=0, imax=1)
     ])
 
-    wandb.init(project='NoStripesNet',
-        entity='nostripesnet',
-        name=args.name
-    )
+    if rank == 0:
+        wandb.init(project='NoStripesNet',
+            entity='nostripesnet',
+            name=f"{args.name}_{rank}"
+        )
+    else:
+        wandb.init(mode = 'disabled')
 
     # Use GPU if available
     if torch.cuda.is_available():

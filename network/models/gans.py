@@ -372,7 +372,7 @@ class WindowGAN(BaseGAN):
 class MaskedGAN(BaseGAN):
     """Masked GAN model to inpaint in sinograms where the mask specifies."""
     def __init__(self, gen, disc=None, mode='train', learning_rate=0.002,
-                 betas=(0.5, 0.999), lambdaL1=100.0, lsgan=False, device=None):
+                 betas=(0.5, 0.999), lambdaL1=100.0, lsgan=False, device=None, ddp=False):
         """Parameters:
             gen : torch.nn.Module
                 The Generator model
@@ -397,7 +397,7 @@ class MaskedGAN(BaseGAN):
         """
         super().__init__(gen, disc, mode=mode, learning_rate=learning_rate,
                          betas=betas, lambdaL1=lambdaL1, lsgan=lsgan,
-                         device=device)
+                         device=device, ddp=ddp)
         self.lossL1 = self.masked_l1_loss
 
     def masked_l1_loss(self, inpt, target):
