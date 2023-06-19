@@ -447,6 +447,6 @@ if __name__ == '__main__':
 
     train(model, dataloader, epochs, vis, save_every=save_every,
           save_dir=model_save_dir, save_name=args.name,
-          start_epoch=start_epoch, verbose=verbose, force=force)
+          start_epoch=start_epoch, verbose=verbose, force=force, rank=rank)
     
     dist.destroy_process_group()
