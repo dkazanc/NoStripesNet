@@ -9,7 +9,8 @@ from tomobar.methodsDIR import RecToolsDIR
 from .misc import Rescale
 
 
-def reconstruct(sinogram, angles=None, comm=MPI.COMM_WORLD, ncore=None):
+def reconstruct(sinogram, angles=None, rot_center=None, comm=MPI.COMM_WORLD,
+                ncore=None):
     """Reconstruct a sinogram. Reconstruction algorithm used is gridrec.
     Parameters:
         sinogram : nd.ndarray or torch.Tensor
@@ -40,20 +41,21 @@ def reconstruct(sinogram, angles=None, comm=MPI.COMM_WORLD, ncore=None):
     if sino_np.min() < 0:
         sino_np = Rescale(a=0, b=sino_np.max())(sino_np)
     # Find Centre of Rotation
-    rot_center = 0
-    mid_rank = int(round(comm.size / 2) + 0.1)
-    if comm.rank == mid_rank:
-        mid_slice = int(np.size(sino_np, 1) / 2)
-        rot_center = tp.find_center_vo(sino_np,
-                                       mid_slice,
-                                       smin=-50,
-                                       smax=50,
-                                       srad=6,
-                                       step=0.25,
-                                       ratio=0.5,
-                                       drop=20,
-                                       ncore=ncore)
-    rot_center = comm.bcast(rot_center, root=mid_rank)
+    if rot_center is None:
+        rot_center = 0
+        mid_rank = int(round(comm.size / 2) + 0.1)
+        if comm.rank == mid_rank:
+            mid_slice = int(np.size(sino_np, 1) / 2)
+            rot_center = tp.find_center_vo(sino_np,
+                                           mid_slice,
+                                           smin=-50,
+                                           smax=50,
+                                           srad=6,
+                                           step=0.25,
+                                           ratio=0.5,
+                                           drop=20,
+                                           ncore=ncore)
+        rot_center = comm.bcast(rot_center, root=mid_rank)
     # Reconstruct
     reconstruction = tp.recon(sino_np,
                               angles,
