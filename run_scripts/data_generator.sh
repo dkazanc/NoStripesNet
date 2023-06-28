@@ -1,4 +1,15 @@
 #!/bin/bash
+
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=20
+#SBATCH --partition=cs05r
+#SBATCH --job-name=nsn
+
+echo "Loading environment..."
+module load python
+conda activate nostripesnet
+echo "Environment loaded"
+
 # Parameters (for full description of each parameter, see ../simulator/README.md)
 mode=patch # type of data to generate
 root='./data' # directory to save data in
