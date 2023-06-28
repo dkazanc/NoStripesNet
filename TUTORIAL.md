@@ -79,7 +79,7 @@ This can be done using the following command:
 ```shell script
 python -m simulator.data_generator
 ```
-It takes a range of arguments, including the dataset root, the HDF file, and the mask file.<br>
+It takes a range of arguments, including the dataset root, the HDF file, and the mask file. A full list of arguments can be found [here](simulator/README.md).<br>
     
 An example command to generate patch data might look like this:
 ```shell script
@@ -132,4 +132,4 @@ A full description of arguments can be found [here](network/README.md)
 There is a [bash script](run_scripts/train_test.sh) which combines training and testing into one script. However, this is not SLURM-compatible, so might be slow. Arguments must be specified within the script.
 
 ## Step 4 - Visualizing the Results
-Once a model has been trained and tested, the final step is the visualize its results. This can be done using the [PatchVisualizer](network/patch_visualizer.py) class. There is a Jupyter Notebook which will set up the model and plot various images.<br>
+Once a model has been trained and tested, the final step is the visualize its results. This can be done using the [PatchVisualizer](network/patch_visualizer.py) class. There is a [Jupyter Notebook](visualize_results.ipynb) which will set up the model and plot various images.<br>
