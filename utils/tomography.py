@@ -158,6 +158,14 @@ class TomoH5:
             return None
         return self.data[self.image_key[:] == 2]
 
+    def _get_norm_from_idx(self, norm, idx):
+        if type(idx) == int or type(idx) == slice:
+            return norm
+        elif type(idx) == tuple:
+            return norm[:, idx[1], idx[2]]
+        else:
+            raise ValueError("Unrecognized index.")
+
     def get_normalized(self, item, flats=None, darks=None):
         """Get a sinogram and normalize it with flats and darks."""
         if flats is None:
@@ -175,8 +183,8 @@ class TomoH5:
             else:
                 darks = self.darks
         # Make sure flats and darks are cropped correctly
-        flats = flats[item]
-        darks = darks[item]
+        flats = self._get_norm_from_idx(flats, item)
+        darks = self._get_norm_from_idx(darks, item)
         # Get data and remove any nan values
         raw = self[item]
         raw[np.isnan(raw)] = 0
