@@ -20,6 +20,7 @@ import wandb
 from torch.utils.data import DistributedSampler
 from socket import gethostname
 import torch.distributed as dist
+from torch.nn.parallel import DistributedDataParallel as DDP
 
 
 def saveModel(model, epoch, save_dir, save_name):
@@ -40,11 +41,19 @@ def saveModel(model, epoch, save_dir, save_name):
     if save_dir is None or save_name is None:
         raise ValueError("If saving a model, both save directory and save "
                          "name should be passed as arguments.")
+    if type(model.gen) == DDP:
+        gen_sd = model.gen.module.state_dict()
+    else:
+        gen_sd = model.gen.state_dict()
+    if type(model.disc) == DDP:
+        disc_sd = model.disc.module.state_dict()
+    else:
+        disc_sd = model.disc.state_dict()
     torch.save({'epoch': epoch,
-                'gen_state_dict': model.gen.state_dict(),
+                'gen_state_dict': gen_sd,
                 'gen_optimizer_state_dict': model.optimizerG.state_dict(),
                 'gen_loss': model.lossG,
-                'disc_state_dict': model.disc.state_dict(),
+                'disc_state_dict': disc_sd,
                 'disc_optimizer_state_dict': model.optimizerD.state_dict(),
                 'disc_loss': model.lossD},
                os.path.join(save_dir, f"{save_name}_{epoch}.tar"))
