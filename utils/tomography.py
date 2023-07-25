@@ -133,7 +133,11 @@ class TomoH5:
         self.data = self.file['entry1/tomo_entry/data/data']
         self.angles = self.file['entry1/tomo_entry/data/rotation_angle']
         image_key_path = 'entry1/tomo_entry/instrument/detector/image_key'
-        self.image_key = self.file[image_key_path]
+        if image_key_path in self.file:
+            self.image_key = self.file[image_key_path]
+        else:
+            print("Warning: file contains no image key. Assuming no flats.")
+            self.image_key = np.zeros(self.data.shape[0])
         self.data_indices = np.where(self.image_key[:] == 0)
         self.shape = self.data.shape
         self.flats = self.get_flats()
@@ -166,7 +170,7 @@ class TomoH5:
         else:
             raise ValueError("Unrecognized index.")
 
-    def get_normalized(self, item, flats=None, darks=None):
+    def get_normalized(self, item, flats=None, darks=None, ncore=None):
         """Get a sinogram and normalize it with flats and darks."""
         if flats is None:
             if self.flats is None:
@@ -189,10 +193,10 @@ class TomoH5:
         raw = self[item]
         raw[np.isnan(raw)] = 0
         # Normalise with flats & darks
-        norm = tp.normalize(raw, flats, darks)
+        norm = tp.normalize(raw, flats, darks, ncore=ncore)
         # Minus Log
         norm[norm <= 0] = 1e-9
-        tp.minus_log(norm, out=norm)
+        tp.minus_log(norm, out=norm, ncore=ncore)
         return norm
 
     def __len__(self):
