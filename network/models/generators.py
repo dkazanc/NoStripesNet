@@ -212,7 +212,7 @@ class PatchUNet(nn.Module):
         self.up4 = self.up(filters*8 * 2, filters*8)
 
         # Input (1024, 112, 16) -> Output (256, 225, 32)
-        self.up5 = self.up(filters*8 * 2, filters*4, k=(5, 4))
+        self.up5 = self.up(filters*8 * 2, filters*4, out_pad=(1, 0))
 
         # Input (512, 225, 32) -> Output (128, 450, 64)
         self.up6 = self.up(filters*4 * 2, filters*2)
@@ -222,7 +222,8 @@ class PatchUNet(nn.Module):
 
         # Input (128, 900, 128) -> Output (1, 1801, 256)
         self.up8 = nn.Sequential(
-            nn.ConvTranspose2d(filters * 2, 1, (5, 4), (2, 2), (1, 1)),
+            nn.ConvTranspose2d(filters * 2, 1, (4, 4), (2, 2), (1, 1),
+                               output_padding=(1, 0)),
             nn.Tanh()
         )
 
@@ -281,7 +282,7 @@ class PatchUNet(nn.Module):
 
     @staticmethod
     def up(in_c, out_c, batchNorm=True, dropout=False, k=(4, 4), s=(2, 2),
-           p=(1, 1)):
+           p=(1, 1), out_pad=(0, 0)):
         if batchNorm:
             batchNorm = nn.BatchNorm2d(out_c, eps=0.001,
                                        track_running_stats=False)
@@ -293,7 +294,7 @@ class PatchUNet(nn.Module):
             dropout = nn.Identity()
         return nn.Sequential(
             nn.ConvTranspose2d(in_c, out_c,
-                               kernel_size=k, stride=s,
+                               kernel_size=k, stride=s, output_padding=out_pad,
                                padding=p, bias=True),
             batchNorm,
             dropout,
