@@ -1,6 +1,5 @@
 import argparse
 import os
-import yaml
 import numpy as np
 from .data_simulator import generateSample, simulateFlats, simulateStripes
 from .realdata_loader import generate_real_data
@@ -137,9 +136,6 @@ def get_args():
     parser.add_argument('-I', "--I0", type=int, default=40000,
                         help="Full-beam photon flux intensity. "
                              "Only affects 'complex' mode.")
-    parser.add_argument("--pipeline", type=str, default='tomo_pipeline.yml',
-                        help="HTTomo YAML pipeline file for loading HDF data. "
-                             "Only affects Real-life data modes.")
     parser.add_argument("--hdf-file", type=str, default=None,
                         help="Nexus file to load HDF data from. "
                              "Only affects Real-life data modes.")

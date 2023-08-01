@@ -1,11 +1,6 @@
 import numpy as np
 import pickle
 from PIL import Image
-from mpi4py import MPI
-from tomopy import normalize, minus_log
-from httomo.data.hdf.loaders import standard_tomo
-from httomo.utils import _parse_preview
-from httomo.data.hdf._utils.load import get_slice_list_from_preview
 
 from utils.misc import rescale
 
@@ -153,70 +148,4 @@ def load3DTiff(path, shape, dtype=np.uint16, normalise=True):
         data[z, ...] = loadTiff(filename, dtype=dtype, normalise=False)
     if normalise:
         data = rescale(data, 0, 1)
-    return data
-
-
-def loadHDF(file, tomo_params, flats=None, darks=None, comm=MPI.COMM_WORLD,
-            ncore=None):
-    """Load the data from an HDF file.
-    Parameters:
-        file : str
-            Path to hdf file to load data from.
-        tomo_params : dict
-            Dictionary that contains loading parameters. Same convention
-            as an HTTomo yaml pipeline file.
-            Must contain the following keys:
-                {'name', 'data_path', 'image_key_path', 'dimension', 'preview',
-                'pad'}
-        flats : np.ndarray
-            Numpy array containing flat fields for the data.
-            If none are provided, will try to load flats from the HDF file.
-            If the HDF file contains no flats, an error will be raised.
-            Default is None.
-        darks : np.ndarray
-            Numpy array containing dark fields for the data.
-            If none are provided, will try to load flats from the HDF file.
-            If the HDF file contains no flats, an error will be raised.
-            Default is None.
-        comm : MPI.Comm
-            MPI Communicator for parallel execution.
-            Default is MPI.COMM_WORLD
-        ncore : int
-            Number of cores that will be assigned to jobs.
-            Default is None.
-    """
-    # Load raw data
-    data, maybe_flats, maybe_darks, angles, *shape = standard_tomo(
-        tomo_params['name'],
-        file,
-        tomo_params['data_path'],
-        tomo_params['image_key_path'],
-        tomo_params['dimension'],
-        tomo_params['preview'],
-        tomo_params['pad'],
-        comm
-    )
-    # Process flats and darks
-    if flats is None and darks is None:
-        # If none were passed in, try and use those loaded from HDF file
-        if maybe_flats.size == 0 and maybe_darks.size == 0:
-            raise RuntimeError("File contains no flat or dark field data, "
-                               "and no flat or dark fields were passed as "
-                               "parameters. Data cannot be normalized.")
-        else:
-            flats = maybe_flats
-            darks = maybe_darks
-    else:
-        # make sure flats & darks are cropped correctly
-        preview = _parse_preview(tomo_params['preview'], shape,
-                                 [0, shape[0] - 1])
-        slices = get_slice_list_from_preview(preview)
-        if flats.shape[-2:] != data.shape[-2:]:
-            flats = flats[tuple(slices)]
-        if darks.shape[-2:] != data.shape[-2:]:
-            darks = darks[tuple(slices)]
-    # Normalize raw data with flats and darks
-    data = normalize(data, flats, darks, ncore=ncore, cutoff=10)
-    data = np.clip(data, 1e-09, 1)
-    data = minus_log(data, ncore=ncore)
     return data

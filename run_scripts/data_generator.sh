@@ -21,7 +21,6 @@ size=256 # cubic size of sample generated
 objects=300 # number of objects to generate per sample
 flatsnum=20 # the number of flat fields to generate
 I0=40000 # full-beam photon flux intensity
-pipeline='./tomo_pipeline.yml' # HTTomo YAML pipeline file
 hdf='/path/to/hdf_file.nxs' # Nexus file containing HDF data
 chunk=243 # no. of slices to load per chunk
 flat='/path/to/flat_file.nxs' # Nexus file containg flats & darks

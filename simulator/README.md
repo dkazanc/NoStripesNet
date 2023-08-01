@@ -137,8 +137,6 @@ The following parameters affect Complex mode:
 
 ## Real-life    
 It is assumed that real-life data exists in a .nxs file.<br>
-Files are loaded using HTTomo, and the [HTTomo pipeline yaml file](../tomo_pipeline.yml) can be used to specify things 
-like the path to the data, the path to the image key, the padding, etc.<br>
 A lot of tomographic data will be too large to fit in memory all at once, and so the data generation scripts all load
 data in *chunks*, by loading only a subset of sinograms at a time.<br>
 If you are running the script on a workstation that has enough memory to load the entire tomogram at once (such as an 
@@ -153,8 +151,6 @@ Most of the real-life data generating scripts follow these steps:
   2. Once the entire shift has been saved, re-load each chunk from disk and normalise w.r.t. the entire 3D sample.
   
 The following parameters affect all sub-methods of Real-life data:
-  - `--pipeline`
-    - The filename of the HTTomo pipeline yaml file. Default is `tomo_pipeline.yml`.
   - `--hdf-root`
     - The .nxs file to load data from. Default is `None`.
     - This should be shift 0, e.g. `1000.nxs` in the below examples.

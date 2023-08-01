@@ -10,7 +10,6 @@ The network can train on both synthetic and real-life data.<br>
  - Python 3.9
  - PyTorch
  - TomoPy
- - HTTomo
 
 For a full list of requirements, see [environment.yml](environment.yml)
 
