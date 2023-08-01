@@ -2,9 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import torch
-from utils.data_io import loadTiff, rescale
+from utils.data_io import loadTiff
 from utils.tomography import reconstruct
-from utils.misc import toTensor, toNumpy
+from utils.misc import toTensor, toNumpy, rescale
 from .visualizers import BaseGANVisualizer
 from pathlib import Path
 

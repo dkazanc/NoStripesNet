@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import numpy as np
 import torch
 
 
@@ -29,6 +30,41 @@ def toNumpy(tensor):
             Numpy array of input tensor.
     """
     return tensor.detach().squeeze().cpu().numpy()
+
+
+def rescale(data, a=0, b=1, imin=None, imax=None):
+    """Rescale data to range [a, b] w.r.t. bounds [imin, imax].
+    Parameters:
+        data : np.ndarray
+            The data to be rescaled
+        a : float
+            The minimum value of the range the data will be scaled to.
+            Default is 0
+        b : float
+            The maximum value of the range the data will be scaled to.
+            Default is 1
+        imin :  float
+            The lower bound with respect to which the data will be scaled.
+            Default is minimum value of `data`.
+        imax: float
+            The upper bound with respect to which the data will be scaled.
+            Default is maximum value of `data`.
+    Returns:
+        out : np.ndarray
+            The rescaled data. Has the same size & shape as input `data`.
+    """
+    data = data.astype(np.float32, copy=False)
+    if imin is None:
+        imin = data.min()
+    if imax is None:
+        imax = data.max()
+    # if imin == imax, then the data is a constant value,
+    # and so normalising will have no effect.
+    # this also avoids a Divide By Zero error.
+    if imin == imax:
+        return data
+    out = a + ((data - imin)*(b - a)) / (imax - imin)
+    return out
 
 
 class Rescale(object):

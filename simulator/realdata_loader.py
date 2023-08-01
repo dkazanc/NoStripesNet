@@ -2,7 +2,8 @@ import os
 import numpy as np
 from skimage.transform import resize
 from tomophantom.supp.artifacts import stripes as add_stripes
-from utils.data_io import saveTiff, loadTiff, rescale
+from utils.data_io import saveTiff, loadTiff
+from utils.misc import rescale
 from utils.stripe_detection import detect_stripe_larix
 from utils.tomography import TomoH5
 

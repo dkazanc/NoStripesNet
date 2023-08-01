@@ -6,7 +6,7 @@ from tomopy.prep.stripe import _detect_stripe
 from scipy.ndimage import median_filter, uniform_filter1d, binary_dilation
 import skimage.morphology as mm
 from sklearn.mixture import GaussianMixture
-from utils.data_io import rescale
+from utils.misc import rescale
 
 
 def detect_stripe_vo(sinogram, drop_ratio=0.1, snr=3, filter_size=10):

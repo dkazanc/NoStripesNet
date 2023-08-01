@@ -16,7 +16,8 @@ from tomophantom.supp.artifacts import _Artifacts_
 from tomobar.supp.suppTools import normaliser
 from .flatgen_mod import synth_flats_mod
 from .flats_to_proj import add_flats_proj
-from utils.data_io import rescale, save3DTiff
+from utils.data_io import save3DTiff
+from utils.misc import rescale
 
 
 def generateSample(N_size, tot_objects, output_path=None, sampleNo=None,

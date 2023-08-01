@@ -6,7 +6,7 @@ from httomo.data.hdf.loaders import _parse_preview
 from mpi4py import MPI
 from h5py import File
 from tomobar.methodsDIR import RecToolsDIR
-from .misc import Rescale
+from .misc import rescale
 
 
 def reconstruct(sinogram, angles=None, rot_center=None, comm=MPI.COMM_WORLD,
@@ -39,7 +39,7 @@ def reconstruct(sinogram, angles=None, rot_center=None, comm=MPI.COMM_WORLD,
     if angles is None:
         angles = tp.angles(sino_np.shape[0])
     if sino_np.min() < 0:
-        sino_np = Rescale(a=0, b=sino_np.max())(sino_np)
+        sino_np = rescale(sino_np, a=0, b=sino_np.max())
     # Find Centre of Rotation
     if rot_center is None:
         rot_center = 0
