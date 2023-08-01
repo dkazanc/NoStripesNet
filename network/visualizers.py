@@ -6,11 +6,11 @@ from torchvision import utils as tv_utils
 
 from .datasets import *
 from .models.gans import *
-from utils.tomography import reconstruct, getRectools2D
+from utils.tomography import reconstruct
 from utils.misc import toNumpy
 
 
-def batch_reconstruct(batch, size, recon_fn='tomopy', device='cpu'):
+def batch_reconstruct(batch):
     """Function that takes in a batch of sinograms of shape (B, C, H, W)
     and returns the reconstruction of every item in that batch as tensors of
     shape (B, C, H, W)
@@ -18,34 +18,16 @@ def batch_reconstruct(batch, size, recon_fn='tomopy', device='cpu'):
     Parameters:
         batch : torch.Tensor
             Batch of sinograms on which to calculate metrics
-        size : int
-            Height of sinogram. Only used if `recon_fn` == 'tomobar'.
-        recon_fn : str
-            Function to reconstruct sinograms. Must be either 'tomopy' or
-            'tomobar'.
-        device : str
-            Device to use when reconstructing.
-            Only used when `recon_fn` == 'tomobar'.
     """
     if batch.shape[1] != 1:
         raise NotImplementedError("Functionality for images with more than "
                                   "1 channel is not implemented.")
     batch = toNumpy(batch)  # new shape: (B, H, W)
-    if recon_fn == 'tomopy':
-        recon_fn = reconstruct
-    elif recon_fn == 'tomobar':
-        rectools = getRectools2D(size, device=device)
-        recon_fn = rectools.FBP
-    else:
-        raise ValueError(
-            f"Recon function should be one of ['tomopy', 'tomobar']. "
-            f"Instead got '{recon_fn}'."
-        )
     # Loop through each sinogram in batch, reconstruct it,
     # then append it to new array
     recons = []
     for sino in batch:
-        recons.append(recon_fn(sino))
+        recons.append(reconstruct(sino))
     recons = np.array(recons)
     if recons.ndim == 3:
         recons = recons[:, None, :, :]
@@ -116,8 +98,7 @@ class BaseGANVisualizer:
         images = [clean, stripe, fake]
         if self.recon_size is None:
             self.recon_size = round(self.model.realA.shape[-1] / np.sqrt(2))
-        images += batch_reconstruct(torch.stack(images, dim=0),
-                                    self.recon_size)
+        images += batch_reconstruct(torch.stack(images, dim=0))
         titles = ['Target', 'Input', 'Output']
         for i, img in enumerate(images):
             plt.subplot(2, 3, i + 1)
@@ -170,12 +151,9 @@ class BaseGANVisualizer:
         # Reconstruct all
         if self.recon_size is None:
             self.recon_size = round(self.model.realA.shape[-1] / np.sqrt(2))
-        input_recon = batch_reconstruct(self.model.realA.detach().cpu(),
-                                        self.recon_size)
-        target_recon = batch_reconstruct(self.model.realB.detach().cpu(),
-                                         self.recon_size)
-        fake_recon = batch_reconstruct(self.model.fakeB.detach().cpu(),
-                                       self.recon_size)
+        input_recon = batch_reconstruct(self.model.realA.detach().cpu())
+        target_recon = batch_reconstruct(self.model.realB.detach().cpu())
+        fake_recon = batch_reconstruct(self.model.fakeB.detach().cpu())
         # Plot clean vs centre vs generated reconstructions
         plt.figure(figsize=(8, 8))
         plt.subplot(131)
@@ -243,7 +221,7 @@ class MaskedVisualizer(BaseGANVisualizer):
         gen_in[mask] = 0
         gen_out = self.model.fakeB.detach().cpu()[item]
         images = [clean, stripe, mask, gen_in, gen_out]
-        images += batch_reconstruct(torch.stack(images, dim=0), self.size)
+        images += batch_reconstruct(torch.stack(images, dim=0))
 
         titles = ['Target', 'With Artifacts', 'Mask', 'Input', 'Output']
         for i, img in enumerate(images):
