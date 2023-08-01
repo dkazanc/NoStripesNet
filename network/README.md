@@ -17,7 +17,6 @@ There are several types of models that can be trained:
   - mask (*masked sinograms for input & output*)
   - simple (*same as mask, but masks are calculated in a simpler way*)
   - patch (*same as simple, but works on patches of sinograms*)
-  - window & full (*uses windowed sinograms, left over from an old method & not used anymore*)
 
 More details about each mode can be found below.<br>
 
@@ -40,9 +39,6 @@ The following parameters are shared between both training and testing:
     - The size of batches to load data in. Default is `16`.
   - `--verbose`, `-v`
     - Print out some extra information when running.
-  - `--window-width`, `-w`
-    - Width of windows to split sinograms into. Only used if `mode = window`.
-    - This is left over from an old version of the project, and is not really used anymore.
 
 
 ### Training
@@ -176,11 +172,3 @@ Patch models are identical to Simple models, but rather than working on full sin
 Patches must be of size `(1801, 256)` and generated according to [Patch](../simulator/README.md#Patch) mode in data generation.<br>
 The Generator class for Path models is `PatchUNet`, and the Discriminator class is `PatchDiscriminator`<br>
 The GAN class is `MaskedGAN`.<br>
-
-### Window and Full
-These two types of model are left over from an old version of the project, and are no longer used.<br>
-They use windowed sinograms.<br>
-The Generator class for Window models is `WindowUNet`, and the Discriminator class is `WindowDiscriminator`.<br>
-The GAN class is `WindowGAN`.<br>
-The Generator class for Full models is `BaseUNet`, and the Discriminator class is `BaseDiscriminator`.<br>
-The GAN class is `BaseGAN`.<br>

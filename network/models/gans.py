@@ -12,6 +12,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.nn.parallel import DistributedDataParallel as DDP
 
+
 # Weights initialization function
 def init_weights(m):
     """Function to initialise weights for a model.
@@ -270,103 +271,6 @@ class BaseGAN:
         else:
             # Otherwise, return mean of sigmoids of raw output
             return torch.sigmoid(raw_output.detach()).mean().item()
-
-
-class WindowGAN(BaseGAN):
-    """Windowed GAN model used to train Generators and Discriminators on
-    windowed sinograms.
-    Training on windowed sinograms did not give great results, and so this
-    class might be deprecated soon.
-    """
-    def __init__(self, width, gen, disc=None, mode='train', learning_rate=0.01,
-                 betas=(0.5, 0.999), lambdaL1=100.0, lsgan=False, device=None):
-        """Parameters:
-            width : int
-                Width of windows into which to split sinograms
-            gen : torch.nn.Module
-                The Generator model
-            disc: torch.nn.Module
-                The Discriminator model. Defaults to None.
-            mode: str
-                The mode of the GAN. Must be either 'train', 'validate', or
-                'test'.
-                If 'train', then `disc` must not be None.
-            learning_rate : float
-                The learning rate of the GAN. Default is 0.01
-            betas : Tuple[float, float]
-                The betas for the Adam optimizer. Default is (0.5, 0.999)
-            lambdaL1 : float
-                Ratio between L1Loss and BCELoss for Generator.
-                Default is 100.0
-            lsgan : bool
-                If True, the GAN will be trained as a Least-Squares GAN.
-                Default is False.
-            device : torch.device
-                Device on which to run the model. Default is CPU.
-        """
-        super().__init__(gen, disc, mode=mode, learning_rate=learning_rate,
-                         betas=betas, lambdaL1=lambdaL1, lsgan=lsgan,
-                         device=device)
-        self.windowWidth = width
-        self.realAs, self.realBs = [], []
-
-    def preprocess(self, a, b):
-        """Pre-process data before it is passed to the GAN models.
-        Pads input windows so that they are all the same length.
-        Parameters:
-            a : List[torch.Tensor]
-                List of windows of Generator Input image
-            b : List[torch.Tensor]
-                List of windows of Generator Target image
-        """
-        self.realAs, self.realBs = [], []
-        # We assume the GAN looks at one window at a time (i.e. channels = 1)
-        # Therefore we can return data as is (it is already a list of windows),
-        # no need to change channels
-        if not (isinstance(a, list) and isinstance(b, list)):
-            raise TypeError(f"Inputs must be of type {list}. "
-                            f"Instead got a: {type(a)} and b: {type(b)}")
-        # Get all widths to be the same
-        for window in a:
-            self.realAs.append(
-                nn.ReplicationPad2d(
-                    (0, self.windowWidth - window.shape[-1], 0, 0))(window)
-            )
-        for window in b:
-            self.realBs.append(
-                nn.ReplicationPad2d(
-                    (0, self.windowWidth - window.shape[-1], 0, 0))(window)
-            )
-
-    def run_passes(self):
-        """Run forwards and backwards passes.
-        Loop through list of windows and run forwards & backwards pass for each
-        window.
-        """
-        self.fakeBs = []
-        for i in range(len(self.realAs)):
-            self.realA = self.realAs[i]
-            self.realB = self.realBs[i]
-
-            super().run_passes()
-
-            self.fakeBs.append(self.fakeB)
-
-    def expandWidth(self):
-        """Deprecated. Expand widths of windows so that they are equal to
-        `self.windowWidth`.
-        No longer used anywhere in project.
-        """
-        a_copy = self.realA.clone()
-        b_copy = self.realB.clone()
-        if self.realA.shape[-1] < self.windowWidth:
-            torch.nn.ReplicationPad2d(
-                (0, self.windowWidth - a_copy.shape[-1], 0, 0))(a_copy)
-        if self.realB.shape[-1] < self.windowWidth:
-            torch.nn.ReplicationPad2d(
-                (0, self.windowWidth - b_copy.shape[-1], 0, 0))(b_copy)
-        self.realA = a_copy
-        self.realB = b_copy
 
 
 class MaskedGAN(BaseGAN):

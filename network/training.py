@@ -7,14 +7,12 @@ from datetime import datetime
 from torch.utils.data import DataLoader, Subset
 import torchvision.transforms as transforms
 
-from .models import BaseGAN, WindowGAN, MaskedGAN, init_weights
+from .models import BaseGAN, MaskedGAN, init_weights
 from .models.discriminators import *
 from .models.generators import *
-from .visualizers import BaseGANVisualizer, PairedWindowGANVisualizer, \
-    MaskedVisualizer
+from .visualizers import BaseGANVisualizer, MaskedVisualizer
 from .patch_visualizer import PatchVisualizer
-from .datasets import PairedWindowDataset, BaseDataset, PairedFullDataset, \
-    MaskedDataset, RandomSubset
+from .datasets import BaseDataset, MaskedDataset, RandomSubset
 from utils.misc import Rescale
 import wandb
 from torch.utils.data import DistributedSampler
@@ -106,12 +104,6 @@ def getTrainingData(dataset, data):
         clean, *shifts = data
         centre = shifts[len(shifts) // 2]
         return centre, clean
-    elif type(dataset) == PairedWindowDataset:
-        clean, stripe, plain = data
-        return stripe, clean
-    elif type(dataset) == PairedFullDataset:
-        clean, stripe, plain = data
-        return stripe, clean
     elif type(dataset) == MaskedDataset:
         clean, stripe, mask = data
         inpt = torch.cat((stripe, mask), dim=-3)
@@ -273,7 +265,7 @@ def get_args():
                         help="Path to input data used in network.")
     parser.add_argument('-m', "--model", type=str, default='base',
                         help="Type of model to train. Must be one of ['base', "
-                             "'mask', 'simple', 'patch', 'window', 'full'].")
+                             "'mask', 'simple', 'patch'].")
     parser.add_argument('-N', "--size", type=int, default=256,
                         help="Number of sinograms per sample.")
     parser.add_argument('-s', "--shifts", type=int, default=1,
@@ -310,8 +302,6 @@ def get_args():
                         help="Interval (in epochs) at which to save model.")
     parser.add_argument('-v', "--verbose", action="store_true",
                         help="Print some extra information when running.")
-    parser.add_argument('-w', "--window-width", type=int, default=25,
-                        help="Width of windows that sinograms are split into.")
     parser.add_argument('-n', '--name', type=str, default=datetime.now().strftime("%d/%m/%Y %H:%M"),
                         help="Log run name")
     parser.add_argument("--ddp", action="store_true",
@@ -325,8 +315,6 @@ if __name__ == '__main__':
     model_save_dir = args.save_dir
     model_file = args.model_file
     size = args.size
-    windowWidth = args.window_width
-    num_windows = (int(np.sqrt(2) * size) // windowWidth + 1)
 
     epochs = args.epochs
     learning_rate = args.learning_rate
@@ -390,29 +378,6 @@ if __name__ == '__main__':
                         betas=betas, lambdaL1=lambdal1, lsgan=lsgan,
                         device=device)
         vis = BaseGANVisualizer(model, dataset, size, not force)
-    elif args.model == 'window':
-        # Create dataset
-        dataset = PairedWindowDataset(root=dataroot, mode='train', tvt=tvt,
-                                      size=size, shifts=num_shifts,
-                                      windowWidth=windowWidth,
-                                      transform=transform)
-        # Create models
-        disc = WindowDiscriminator()
-        gen = WindowUNet()
-        model = WindowGAN(windowWidth, gen, disc, mode='train',
-                          learning_rate=learning_rate, betas=betas,
-                          lambdaL1=lambdal1, lsgan=lsgan, device=device)
-        vis = PairedWindowGANVisualizer(model, dataset, size, not force)
-    elif args.model == 'full':
-        # Create dataset
-        dataset = PairedFullDataset(root=dataroot, mode='train', tvt=tvt,
-                                    size=size, shifts=num_shifts,
-                                    windowWidth=windowWidth,
-                                    transform=transform)
-        model = BaseGAN(gen, disc, mode='train', learning_rate=learning_rate,
-                        betas=betas, lambdaL1=lambdal1, lsgan=lsgan,
-                        device=device)
-        vis = BaseGANVisualizer(model, dataset, size, not force)
     elif args.model == 'mask' or args.model == 'simple':
         # Create dataset
         dataset = MaskedDataset(root=dataroot, mode='train', tvt=tvt,
@@ -435,7 +400,7 @@ if __name__ == '__main__':
         vis = PatchVisualizer(dataroot, model, block=not force)
     else:
         raise ValueError(f"Argument '--model' should be one of ['base', 'mask'"
-                         f", 'simple', 'patch', 'window', 'full']. "
+                         f", 'simple', 'patch']. "
                          f"Instead got '{args.model}'")
 
     # Train

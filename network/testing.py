@@ -6,15 +6,13 @@ from torch.utils.data import DataLoader, Subset
 import torchvision.transforms as transforms
 
 from .training import getTrainingData
-from .models import BaseGAN, WindowGAN, MaskedGAN, init_weights
+from .models import BaseGAN, MaskedGAN, init_weights
 from .models.generators import *
 from .models.discriminators import *
-from .datasets import PairedWindowDataset, BaseDataset, PairedFullDataset, \
-    MaskedDataset
+from .datasets import BaseDataset, MaskedDataset
 from utils.metrics import apply_metrics, test_metrics
 from utils.misc import Rescale
-from .visualizers import BaseGANVisualizer, PairedWindowGANVisualizer, \
-    MaskedVisualizer
+from .visualizers import BaseGANVisualizer, MaskedVisualizer
 from .patch_visualizer import PatchVisualizer
 import matplotlib.pyplot as plt
 import wandb
@@ -103,11 +101,6 @@ def test(model, dataloader, metrics, vis, display_each_batch=False,
         # Run forward and backward passes
         model.run_passes()
 
-        if isinstance(model, WindowGAN):
-            model.realA = dataset.combineWindows(model.realAs)
-            model.realB = dataset.combineWindows(model.realBs)
-            model.fakeB = dataset.combineWindows(model.fakeBs)
-
         if visual_only:
             break
 
@@ -181,7 +174,7 @@ def get_args():
                         help="Path to input data used in network.")
     parser.add_argument('-m', "--model", type=str, default='base',
                         help="Type of model to train. Must be one of ['base', "
-                             "'mask', 'simple', 'patch', 'window', 'full'].")
+                             "'mask', 'simple', 'patch'].")
     parser.add_argument('-N', "--size", type=int, default=256,
                         help="Number of sinograms per sample.")
     parser.add_argument('-s', "--shifts", type=int, default=5,
@@ -202,8 +195,6 @@ def get_args():
                              "batch of images.")
     parser.add_argument('-v', "--verbose", action="store_true",
                         help="Print some extra information when running.")
-    parser.add_argument('-w', "--window-width", type=int, default=25,
-                        help="Width of windows that sinograms are split into.")
     parser.add_argument('-n', '--name', type=str, default=None,
                     help="W&b training log run name")
     return parser.parse_args()
@@ -215,8 +206,6 @@ if __name__ == '__main__':
     model_name = args.model
     model_file = args.model_file
     size = args.size
-    windowWidth = args.window_width
-    num_windows = (int(np.sqrt(2) * size) // windowWidth + 1)
 
     num_shifts = args.shifts
     batch_size = args.batch_size
@@ -265,24 +254,6 @@ if __name__ == '__main__':
                               transform=transform)
         model = BaseGAN(gen, disc, mode='test', device=device)
         vis = BaseGANVisualizer(model, dataset, size, True)
-    elif model_name == 'window':
-        # Create dataset and dataloader
-        dataset = PairedWindowDataset(root=dataroot, mode='test', tvt=tvt,
-                                      size=size, shifts=num_shifts,
-                                      windowWidth=windowWidth,
-                                      transform=transform)
-        # Create models
-        gen = WindowUNet()
-        disc = WindowDiscriminator()
-        model = WindowGAN(windowWidth, gen, disc, mode='test', device=device)
-        vis = PairedWindowGANVisualizer(model, dataset, size, True)
-    elif model_name == 'full':
-        dataset = PairedFullDataset(root=dataroot, mode='test', tvt=tvt,
-                                    size=size, shifts=num_shifts,
-                                    windowWidth=windowWidth,
-                                    transform=transform)
-        model = BaseGAN(gen, disc, mode='test', device=device)
-        vis = BaseGANVisualizer(model, dataset, size, True)
     elif model_name == 'mask' or model_name == 'simple':
         dataset = MaskedDataset(root=dataroot, mode='test', tvt=tvt, size=size,
                                 shifts=num_shifts,
@@ -300,7 +271,7 @@ if __name__ == '__main__':
         vis = PatchVisualizer(dataroot, model, block=True)
     else:
         raise ValueError(f"Argument '--model' should be one of ['base', 'mask'"
-                         f", 'simple', 'patch', 'window', 'full']. "
+                         f", 'simple', 'patch']. "
                          f"Instead got '{args.model}'")
 
     # Test
