@@ -223,11 +223,11 @@ if __name__ == '__main__':
     tvt = args.tvt
 
     api = wandb.Api()
-    runs = api.runs("nostripesnet/NoStripesNet")
+    runs = api.runs("nostripegan/NoStripesGAN")
 
     for rns in runs:
         if rns.name == args.name:
-            run = api.run(f"/nostripesnet/NoStripesNet/{rns.id}")
+            run = api.run(f"/nostripegan/NoStripesGAN/{rns.id}")
 
     if args.metrics == 'all':
         ms = test_metrics

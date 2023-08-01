@@ -368,12 +368,11 @@ if __name__ == '__main__':
     ])
 
     if rank == 0:
-        wandb.init(project='NoStripesNet',
-            entity='nostripesnet',
-            name=f"{args.name}_{rank}"
-        )
+        wandb.init(project='NoStripesGAN',
+                   entity='nostripegan',
+                   name=f"{args.name}_{rank}")
     else:
-        wandb.init(mode = 'disabled')
+        wandb.init(mode='disabled')
 
     # Use GPU if available
     if torch.cuda.is_available():
@@ -455,7 +454,7 @@ if __name__ == '__main__':
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=int(os.cpu_count()))
 
     train(model, dataloader, epochs, vis, save_every=save_every,
-          save_dir=model_save_dir, save_name=args.name,
+          save_dir=model_save_dir, save_name=args.name, val=True,
           start_epoch=start_epoch, verbose=verbose, force=force, rank=rank)
     
     dist.destroy_process_group()
