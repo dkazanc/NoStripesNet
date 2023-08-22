@@ -2,20 +2,21 @@ import argparse
 import numpy as np
 from datetime import datetime
 
+import torch
 from torch.utils.data import DataLoader, Subset
 import torchvision.transforms as transforms
 
 from .training import getTrainingData
 from .models import BaseGAN, MaskedGAN, init_weights
-from .models.generators import *
-from .models.discriminators import *
+from .models.generators import BaseUNet, PatchUNet
+from .models.discriminators import BaseDiscriminator, PatchDiscriminator
 from .datasets import BaseDataset, MaskedDataset
 from utils.metrics import apply_metrics, test_metrics
 from utils.misc import Rescale
 from .visualizers import BaseGANVisualizer, MaskedVisualizer
 from .patch_visualizer import PatchVisualizer
-import matplotlib.pyplot as plt
 import wandb
+
 
 def createModelParams(model, path, device):
     """Initialise parameters for a model.
@@ -60,7 +61,7 @@ def accuracy(predictions, labels):
 
 
 def test(model, dataloader, metrics, vis, display_each_batch=False,
-         verbose=True, visual_only=False, run = None):
+         verbose=True, visual_only=False, run=None):
     """Train a model.
     Parameters:
         model : torch.nn.Module
@@ -81,6 +82,8 @@ def test(model, dataloader, metrics, vis, display_each_batch=False,
             Useful if you just want to do a visual analysis of performance,
             and not wait for the entire testing process to complete.
             Default is False.
+        run : wandb.Run
+            Weights & Biases Run object to log metrics to.
     """
     if isinstance(dataloader.dataset, Subset):
         dataset = dataloader.dataset.dataset
@@ -196,7 +199,7 @@ def get_args():
     parser.add_argument('-v', "--verbose", action="store_true",
                         help="Print some extra information when running.")
     parser.add_argument('-n', '--name', type=str, default=None,
-                    help="W&b training log run name")
+                        help="W&b training log run name")
     return parser.parse_args()
 
 
@@ -214,6 +217,7 @@ if __name__ == '__main__':
     api = wandb.Api()
     runs = api.runs("nostripegan/NoStripesGAN")
 
+    run = None
     for rns in runs:
         if rns.name == args.name:
             run = api.run(f"/nostripegan/NoStripesGAN/{rns.id}")
@@ -276,6 +280,7 @@ if __name__ == '__main__':
 
     # Test
     createModelParams(model, model_file, device)
-    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=20)
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True,
+                            num_workers=20)
     test(model, dataloader, ms, vis, display_each_batch=display_each_batch,
-         verbose=verbose, visual_only=visual, run = run)
+         verbose=verbose, visual_only=visual, run=run)

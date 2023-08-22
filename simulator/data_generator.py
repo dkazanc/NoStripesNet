@@ -13,8 +13,8 @@ def makeDirectories(dataDir, sampleNo, shifts, mode):
             Root directory under which all sub-directories will be created.
         sampleNo : int
             Sample Number. If mode is one of ['simple', 'complex', 'raw',
-            'paired'], a sub-directory named after this parameter will be
-            created.
+            'paired', 'patch'], a sub-directory named after this parameter will
+            be created.
         shifts : int
             Number of vertical shifts in data when scanned. If mode is one of
             ['simple', 'complex', 'raw'], a sub-directory will be created for
@@ -41,10 +41,10 @@ def makeDirectories(dataDir, sampleNo, shifts, mode):
                         │   ├── clean
                         │   └── stripe
                         ...
-                'paired':
+                ['paired', 'patch']:
                     For real life data that simulates artifacts in clean
-                    sinograms, and creates clean sinograms for sinograms with
-                    real artifacts.
+                    sinograms (or patches), and creates clean sinograms (or
+                    patches) for sinograms with real artifacts.
                     Creates the following structure:
                         <dataDir>
                         ├── <sampleNo>
@@ -64,8 +64,8 @@ def makeDirectories(dataDir, sampleNo, shifts, mode):
     Returns:
         str
             The main root of the created directories. For modes ['simple',
-            'complex', 'raw], this is '<dataDir>/<sampleNo>'.
-            For modes ['paired', 'dynamic'], this is <dataDir>.
+            'complex', 'raw', 'paired', 'patch'], this is <dataDir>/<sampleNo>.
+            For mode 'dynamic', this is <dataDir>.
     """
     mainPath = dataDir
     if mode in ['complex', 'raw']:
@@ -98,8 +98,8 @@ def makeDirectories(dataDir, sampleNo, shifts, mode):
         os.makedirs(dynamicPath, exist_ok=True)
     else:
         raise ValueError(
-            "Mode should be one of [simple, complex raw, paired, dynamic]. "
-            f"Instead got '{mode}'.")
+            f"Mode should be one of [simple, complex, raw, paired, patch, "
+            f"dynamic]. Instead got '{mode}'.")
     return mainPath
 
 

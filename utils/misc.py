@@ -67,7 +67,7 @@ def rescale(data, a=0, b=1, imin=None, imax=None):
     return out
 
 
-class Rescale(object):
+class Rescale:
     """Rescale data to a given range."""
 
     def __init__(self, a=0, b=1, imin=None, imax=None):

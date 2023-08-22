@@ -125,10 +125,11 @@ def train(model, dataloader, epochs, vis, save_every=None,
             Number of epochs for which to train the model
         vis : object
             Visualizer to plot results of training.
-        save_every_epoch : bool
-            Whether the model should be saved to disk after the completion of
-            each epoch. Default is False.
-            If True, `save_name` and `save_dir` must also be specified.
+        save_every : int
+            Interval (in epochs) at which to save model. Default is None.
+            Regardless of the value of this parameter, the model will still be
+            saved at the end of training.
+            If given, `save_name` and `save_dir` must also be given.
         save_name : str
             Name with which to save model. Default is None.
         save_dir : str
@@ -142,6 +143,11 @@ def train(model, dataloader, epochs, vis, save_every=None,
         force : bool
             Whether execution should continue without waiting for plots to be
             closed. Default is False.
+        rank : int
+            Rank of process running the training loop. Default is 0.
+            Should only be given if running with multiple nodes.
+        val : bool
+            Whether or not to run validation. Default is False.
     """
     if isinstance(dataloader.dataset, Subset):
         dataset = dataloader.dataset.dataset
@@ -168,11 +174,11 @@ def train(model, dataloader, epochs, vis, save_every=None,
         # Print out some useful info
         if verbose:
             print(f"\tEpoch [{epoch + 1}/{epochs}], "
-                f"Batch [{i + 1}/{num_batches}], "
-                f"Loss_D: {model.lossD.item():2.5f}, "
-                f"Loss_G: {model.lossG.item():2.5f}, "
-                f"D(x): {model.D_x:.5f}, "
-                f"D(G(x)): {model.D_G_x1:.5f} / {model.D_G_x2:.5f}")
+                  f"Batch [{i + 1}/{num_batches}], "
+                  f"Loss_D: {model.lossD.item():2.5f}, "
+                  f"Loss_G: {model.lossG.item():2.5f}, "
+                  f"D(x): {model.D_x:.5f}, "
+                  f"D(G(x)): {model.D_G_x1:.5f} / {model.D_G_x2:.5f}")
         
         # Log metrics 
         wandb.log({
@@ -186,7 +192,7 @@ def train(model, dataloader, epochs, vis, save_every=None,
         if val:
             # At the end of every epoch, run through validate dataset
             print(f"Epoch [{epoch + 1}/{epochs}]: "
-                f"Training finished. Validating model...")
+                  f"Training finished. Validating model...")
             dataloader.dataset.setMode('validate')
             model.setMode('validate')
             num_batches = len(dataloader)
@@ -201,11 +207,11 @@ def train(model, dataloader, epochs, vis, save_every=None,
                 # Print out some useful info
                 if verbose:
                     print(f"\tEpoch [{epoch + 1}/{epochs}], "
-                        f"Batch [{i + 1}/{num_batches}], "
-                        f"Loss_D: {model.lossD.item():2.5f}, "
-                        f"Loss_G: {model.lossG.item():2.5f}, "
-                        f"D(x): {model.D_x:.5f}, "
-                        f"D(G(x)): {model.D_G_x1:.5f} / {model.D_G_x2:.5f}")
+                          f"Batch [{i + 1}/{num_batches}], "
+                          f"Loss_D: {model.lossD.item():2.5f}, "
+                          f"Loss_G: {model.lossG.item():2.5f}, "
+                          f"D(x): {model.D_x:.5f}, "
+                          f"D(G(x)): {model.D_G_x1:.5f} / {model.D_G_x2:.5f}")
                 # Collate validation losses
                 validation_lossesG[i] = model.lossG.item()
                 validation_lossesD[i] = model.lossD.item()
@@ -216,11 +222,11 @@ def train(model, dataloader, epochs, vis, save_every=None,
             print(f"Epoch [{epoch + 1}/{epochs}]: Validation finished.")
 
         # At the end of every epoch, save model state
-        if rank == 0 and  save_every is not None and epoch % save_every == 0 and \
-                save_dir is not None and save_name is not None:
+        if rank == 0 and save_every is not None and epoch % save_every == 0 \
+                and save_dir is not None and save_name is not None:
             saveModel(model, epoch, save_dir, save_name)
             print(f"Epoch [{epoch+1}/{epochs}]: "
-                    f"Model '{save_name}_{epoch}' saved to '{save_dir}'")
+                  f"Model '{save_name}_{epoch}' saved to '{save_dir}'")
         else:
             if verbose:
                 print(f"Epoch [{epoch+1}/{epochs}]: Model not saved.")
@@ -302,8 +308,8 @@ def get_args():
                         help="Interval (in epochs) at which to save model.")
     parser.add_argument('-v', "--verbose", action="store_true",
                         help="Print some extra information when running.")
-    parser.add_argument('-n', '--name', type=str, default=datetime.now().strftime("%d/%m/%Y %H:%M"),
-                        help="Log run name")
+    parser.add_argument('-n', '--name', type=str, help="Log run name",
+                        default=datetime.now().strftime("%d/%m/%Y %H:%M"))
     parser.add_argument("--ddp", action="store_true",
                         help="Train on Multiple nodes Multiple GPUs")
     return parser.parse_args()
@@ -332,13 +338,13 @@ if __name__ == '__main__':
     ddp = args.ddp
     
     rank = 0
-    if ddp :
+    if ddp:
         world_size    = int(os.environ["WORLD_SIZE"])
         rank          = int(os.environ["SLURM_PROCID"])
         gpus_per_node = int(os.environ["SLURM_GPUS_ON_NODE"])
         assert gpus_per_node == torch.cuda.device_count()
-        print(f"Rank {rank} of {world_size} on {gethostname()}" \
-            f" {gpus_per_node} allocated GPUs per node.", flush=True)
+        print(f"Rank {rank} of {world_size} on {gethostname()} "
+              f"{gpus_per_node} allocated GPUs per node.", flush=True)
         print('Group initialization')
         dist.init_process_group("nccl", rank=rank, world_size=world_size)
         if rank == 0:
@@ -413,10 +419,14 @@ if __name__ == '__main__':
         dataset = RandomSubset(dataset, sbst_size)
     
     if ddp:
-        sampler = DistributedSampler(dataset, num_replicas=world_size, rank=rank)
-        dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=int(os.environ["SLURM_CPUS_PER_TASK"]), sampler=sampler)
+        sampler = DistributedSampler(dataset, num_replicas=world_size,
+                                     rank=rank)
+        dataloader = DataLoader(dataset, batch_size=batch_size,
+                                num_workers=int(os.environ["SLURM_CPUS_PER_TASK"]),
+                                sampler=sampler)
     else:
-        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=int(os.cpu_count()))
+        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True,
+                                num_workers=int(os.cpu_count()))
 
     train(model, dataloader, epochs, vis, save_every=save_every,
           save_dir=model_save_dir, save_name=args.name, val=True,

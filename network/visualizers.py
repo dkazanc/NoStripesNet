@@ -1,11 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.lines import Line2D
 import torch
 from torchvision import utils as tv_utils
 
-from .datasets import *
-from .models.gans import *
 from utils.tomography import reconstruct
 from utils.misc import toNumpy
 

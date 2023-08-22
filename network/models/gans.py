@@ -42,7 +42,8 @@ def init_weights(m):
 class BaseGAN:
     """Basic GAN model used to train a Generator and Discriminator."""
     def __init__(self, gen, disc=None, mode='train', learning_rate=0.01,
-                 betas=(0.5, 0.999), lambdaL1=100.0, lsgan=False, device=None, ddp=False):
+                 betas=(0.5, 0.999), lambdaL1=100.0, lsgan=False, device=None,
+                 ddp=False):
         """Parameters:
             gen : torch.nn.Module
                 The Generator model
@@ -64,6 +65,9 @@ class BaseGAN:
                 Default is False.
             device : torch.device
                 Device on which to run the model. Default is CPU.
+            ddp : bool
+                Whether to use DistributedDataParallel to speed up training.
+                Default is False.
         """
         if device is None:
             self.device = torch.device('cpu')
@@ -276,7 +280,8 @@ class BaseGAN:
 class MaskedGAN(BaseGAN):
     """Masked GAN model to inpaint in sinograms where the mask specifies."""
     def __init__(self, gen, disc=None, mode='train', learning_rate=0.002,
-                 betas=(0.5, 0.999), lambdaL1=100.0, lsgan=False, device=None, ddp=False):
+                 betas=(0.5, 0.999), lambdaL1=100.0, lsgan=False, device=None,
+                 ddp=False):
         """Parameters:
             gen : torch.nn.Module
                 The Generator model
@@ -298,6 +303,9 @@ class MaskedGAN(BaseGAN):
                 Default is False.
             device : torch.device
                 Device on which to run the model. Default is CPU.
+            ddp : bool
+                Whether to use DistributedDataParallel to speed up training.
+                Default is False.
         """
         super().__init__(gen, disc, mode=mode, learning_rate=learning_rate,
                          betas=betas, lambdaL1=lambdaL1, lsgan=lsgan,

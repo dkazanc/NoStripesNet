@@ -16,6 +16,9 @@ def reconstruct(sinogram, angles=None, rot_center=None, comm=MPI.COMM_WORLD,
             Angles to reconstruct with. Default is evenly distributed radians
             between 0 and pi, with length the same as first dimension of
             sinogram.
+        rot_center : float
+            Center of rotation to use when reconstructing. Default is None.
+            If not given, the center will be found automatically.
         comm : MPI.Comm
             MPI Communicator for parallel execution.
             Default is MPI.COMM_WORLD
@@ -70,6 +73,10 @@ class TomoH5:
     """Class to wrap around a .nxs file containing tomography scan data."""
 
     def __init__(self, nexus_file):
+        """Parameters:
+            nexus_file : str
+                .nxs or .h5 file containing tomographic data.
+        """
         self.file = File(nexus_file, 'r')
         self.data = self.file['entry1/tomo_entry/data/data']
         self.angles = self.file['entry1/tomo_entry/data/rotation_angle']
@@ -85,20 +92,37 @@ class TomoH5:
         self.darks = self.get_darks()
 
     def contains_flats(self):
+        """Returns: bool
+            Whether the HDF5 file contains flat fields.
+        """
         return 1 in self.image_key
 
     def contains_darks(self):
+        """Returns: bool
+            Whether the HDF5 file contains dark fields.
+        """
         return 2 in self.image_key
 
     def get_angles(self):
+        """Returns: np.ndarray
+            Array containing the angle of rotation for each projection.
+        """
         return self.angles[self.data_indices]
 
     def get_flats(self):
+        """Returns: np.ndarray
+            Array containing the flat fields of the HDF5 file.
+            If file contains no flat fields, None is returned.
+        """
         if not self.contains_flats():
             return None
         return self.data[self.image_key[:] == 1]
 
     def get_darks(self):
+        """Returns: np.ndarray
+            Array containing the dark fields of the HDF5 file.
+            If file contains no dark fields, None is returned.
+        """
         if not self.contains_darks():
             return None
         return self.data[self.image_key[:] == 2]
@@ -112,7 +136,25 @@ class TomoH5:
             raise ValueError("Unrecognized index.")
 
     def get_normalized(self, item, flats=None, darks=None, ncore=None):
-        """Get a sinogram and normalize it with flats and darks."""
+        """Get a slice of data and normalise it with flats and darks.
+        Parameters:
+            item : int or slice
+                The index or slice of the data to retrieve from the HDF5 file.
+            flats : np.ndarray
+                Flat fields to use when normalising the data. Default is None.
+                If not given, then flats from the HDF5 file will be used.
+                If the HDF5 file contains no flats, an error is raised.
+            darks : np.ndarray
+                Dark fields to use when normalising the data. Default is None.
+                If not given, then darks from the HDF5 file will be used.
+                If the HDF5 file contains no darks, an error is raised.
+            ncore : None
+                Number of cores to use when normalising the data.
+                Default is None.
+        Returns:
+            np.ndarray
+                The normalised data.
+        """
         if flats is None:
             if self.flats is None:
                 raise ValueError(
@@ -141,10 +183,19 @@ class TomoH5:
         return norm
 
     def __len__(self):
+        """Return the length of the data"""
         return self.shape[0]
 
     def __getitem__(self, item):
-        """Item should be adjusted so that flats & darks are ignored."""
+        """Get an un-normalised slice from the HDF5 data.
+        Parameters:
+            item : int or slice
+                The index or slice of the data to retrieve from the HDF5 file.
+        Returns:
+            np.ndarray
+                Raw data from the HDF5 file.
+        """
+        # Item should be adjusted so that flats & darks are ignored.
         if not (self.contains_flats() or self.contains_darks()):
             return self.data[item]
         # assumes data_indices is in ascending order

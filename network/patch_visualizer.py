@@ -31,6 +31,11 @@ class PatchVisualizer:
                 Sample number to load patches from. Default is 0.
             shift_no : int
                 Shift number to load patches from. Default is 0.
+            mask_file : str or Path-like
+                Path to compressed NumPy archive (.npz) containing mask of
+                stripe locations in the sample. Default is None.
+                If not given, a mask file will be looked for in the parent dir
+                of `root`. If this doesn't exist, an error will be raised.
         """
         self.root = Path(root)
         self.model = model

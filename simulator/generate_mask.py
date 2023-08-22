@@ -7,6 +7,15 @@ from utils.tomography import TomoH5
 
 
 def append_npz(archive_name, file_name, arr):
+    """Append an array to a compressed Numpy archive (.npz).
+    Parameters:
+        archive_name : str or Path-like
+            Path to the archive file to append the array to.
+        file_name : str
+            Internal filename to save the array under within the archive.
+        arr : np.ndarray
+            Array to append to the archive.
+    """
     archive_name = Path(archive_name)
     if archive_name.exists():
         archive = np.load(archive_name)
@@ -18,6 +27,18 @@ def append_npz(archive_name, file_name, arr):
 
 
 def larix_stripes_detect(tomo, archive, file_name, save_weights=False):
+    """Create and save a mask of stripe locations in a given tomogram.
+    Parameters:
+        tomo : np.ndarray
+            3D tomogram to detect stripes in.
+        archive : str or Path-like
+            Compressed Numpy archive (.npz) to append mask to.
+        file_name : str
+            Internal filename to save the mask within the archive.
+        save_weights : bool
+            Whether or not to save stripe weights, as well as the mask.
+            Default is False.
+    """
     print("Calculating stripe weights...", flush=True)
     start = timeit.default_timer()
     weights = STRIPES_DETECT(tomo, size=250, radius=3)

@@ -1,11 +1,10 @@
 import os
-import itertools
 import random
 import numpy as np
 import torch
 from torch.utils.data import Dataset, Subset
 from utils.data_io import loadTiff
-from utils.stripe_detection import gradient_sum_tv, getMask_functional
+from utils.stripe_detection import getMask_functional
 from pathlib import Path
 
 
@@ -165,6 +164,8 @@ class MaskedDataset(BaseDataset):
             shifts : int
                 Number of shifts per sample. Only exists to be compatible
                 with BaseDataset, not needed with this class.
+            transform : torch.nn.Module
+                Transformations to apply to data.
             kernel_width : int
                 Width of kernel used in stripe detection method
                 Default is 3
@@ -181,8 +182,9 @@ class MaskedDataset(BaseDataset):
             filter_size : int
                 Size of median filter (for stripe detection method).
                 Default is 10
-            transform : torch.nn.Module
-                Transformations to apply to data.
+            simple : bool
+                Whether to use calculate masks using clean and stripe
+                sinograms. Default is False.
         """
         super().__init__(root, mode, tvt, size, shifts, transform=transform)
         self.k = kernel_width

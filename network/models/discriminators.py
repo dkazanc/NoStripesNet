@@ -73,8 +73,8 @@ class BaseDiscriminator(nn.Module):
 class PatchDiscriminator(nn.Module):
     """Discriminator that runs on patches of size (1801, 256).
     For use when mode == 'patch'.
-    Has a similar structure to BaseDiscriminator, but with (1, 1) padding in
-    every layer.
+    Has a similar structure to BaseDiscriminator, but with 8 layers and
+    (1, 1) padding in every layer.
     """
     def __init__(self):
         super(PatchDiscriminator, self).__init__()
