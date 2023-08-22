@@ -30,5 +30,5 @@ patch_h=1801 # height of patches to split data into
 patch_w=256 # width of patches to split data into
 
 echo "Data generation has begun"
-python -m simulator.data_generator -m $mode -r $root -S $samples --start $start -s $shifts -p $shift_step -N $size -o $objects -f $flatsnum -I $I0 --pipeline $pipeline --hdf-file $hdf -C $chunk --flats $flat --mask $mask --frame-angles $angles --patch-size $patch_h $patch_w -v
+python -m simulator.data_generator -m $mode -r $root -S $samples --start $start -s $shifts -p $shift_step -N $size -o $objects -f $flatsnum -I $I0 --hdf-file $hdf -C $chunk --flats $flat --mask $mask --frame-angles $angles --patch-size $patch_h $patch_w -v
 echo "Data generation finished"
