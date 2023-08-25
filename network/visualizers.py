@@ -34,14 +34,12 @@ def batch_reconstruct(batch):
 class BaseGANVisualizer:
     """Visualizer class to plot images during training/testing."""
 
-    def __init__(self, model, dataset, size, block=True):
+    def __init__(self, model, dataset, block=True):
         """Parameters:
             model : BaseGAN
                 The GAN model from which to plot data.
             dataset : torch.utils.data.Dataset
                 The dataset from which data is being retrieved.
-            size : int
-                The height of the sinogram.
             block : bool
                 Whether or not plots should pause execution of code.
                 Default is True.
@@ -50,7 +48,6 @@ class BaseGANVisualizer:
         self.gen = self.model.gen
         self.disc = self.model.disc
         self.dataset = dataset
-        self.size = size
         self.recon_size = None
         self.block = block
 

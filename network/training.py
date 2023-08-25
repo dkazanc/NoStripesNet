@@ -272,10 +272,6 @@ def get_args():
     parser.add_argument('-m', "--model", type=str, default='base',
                         help="Type of model to train. Must be one of ['base', "
                              "'mask', 'simple', 'patch'].")
-    parser.add_argument('-N', "--size", type=int, default=256,
-                        help="Number of sinograms per sample.")
-    parser.add_argument('-s', "--shifts", type=int, default=1,
-                        help="Number of shifts per sample.")
     parser.add_argument("--tvt", type=int, default=[3, 1, 1], nargs=3,
                         help="Train/Validate/Test split, entered as a ratio.")
     parser.add_argument('-B', "--batch-size", type=int, default=16,
@@ -320,13 +316,11 @@ if __name__ == '__main__':
     dataroot = args.root
     model_save_dir = args.save_dir
     model_file = args.model_file
-    size = args.size
 
     epochs = args.epochs
     learning_rate = args.learning_rate
     betas = args.betas
     lambdal1 = args.lambdal1
-    num_shifts = args.shifts
     batch_size = args.batch_size
     tvt = args.tvt
     sbst_size = args.subset
@@ -378,25 +372,23 @@ if __name__ == '__main__':
     gen = BaseUNet()
     if args.model == 'base':
         # Create dataset
-        dataset = BaseDataset(root=dataroot, mode='train', tvt=tvt, size=size,
-                              shifts=num_shifts, transform=transform)
+        dataset = BaseDataset(root=dataroot, mode='train', tvt=tvt,
+                              transform=transform)
         model = BaseGAN(gen, disc, mode='train', learning_rate=learning_rate,
                         betas=betas, lambdaL1=lambdal1, lsgan=lsgan,
                         device=device)
-        vis = BaseGANVisualizer(model, dataset, size, not force)
+        vis = BaseGANVisualizer(model, dataset, not force)
     elif args.model == 'mask' or args.model == 'simple':
         # Create dataset
         dataset = MaskedDataset(root=dataroot, mode='train', tvt=tvt,
-                                size=size, shifts=num_shifts,
                                 transform=transform,
                                 simple=args.model=='simple')
         model = MaskedGAN(gen, disc, mode='train', learning_rate=learning_rate,
                           betas=betas, lambdaL1=lambdal1, lsgan=lsgan,
                           device=device)
-        vis = MaskedVisualizer(model, dataset, size, not force)
+        vis = MaskedVisualizer(model, dataset, not force)
     elif args.model == 'patch':
         dataset = MaskedDataset(root=dataroot, mode='train', tvt=tvt,
-                                size=size, shifts=num_shifts,
                                 transform=transform, simple=True)
         disc = PatchDiscriminator()
         gen = PatchUNet()

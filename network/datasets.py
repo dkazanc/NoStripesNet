@@ -57,7 +57,7 @@ class BaseDataset(Dataset):
     Assumes data was generated according to the scripts in ../simulators.
     """
 
-    def __init__(self, root, mode, tvt, size=256, shifts=5, transform=None):
+    def __init__(self, root, mode, tvt, transform=None):
         """Parameters:
             root : str
                 Path to dataset root
@@ -80,8 +80,6 @@ class BaseDataset(Dataset):
         self.mode, self.datasets, self.filepaths = None, [], []
         self.setMode(mode)
         self.transform = transform
-        self.size = size
-        self.shifts = shifts
 
     def __len__(self):
         """Return length of dataset."""
@@ -146,7 +144,7 @@ class MaskedDataset(BaseDataset):
             Creates masks using both clean & stripey sinograms
     Assumes data was generated according to the scripts in ../simulators.
     """
-    def __init__(self, root, mode, tvt, size=256, shifts=5, transform=None,
+    def __init__(self, root, mode, tvt, transform=None,
                  kernel_width=3, min_width=2, max_width=25, threshold=0.01,
                  filter_size=10, simple=False):
         """Parameters:
@@ -158,12 +156,6 @@ class MaskedDataset(BaseDataset):
             tvt : Tuple[int, int, int]
                 Train/validate/test split of data. Interpreted as a ratio,
                 i.e. (3, 1, 1) is equivalent to train:validate:test ratio 3:1:1
-            size : int
-                Number of sinograms per sample. Only exists to be compatible
-                with BaseDataset, not needed with this class.
-            shifts : int
-                Number of shifts per sample. Only exists to be compatible
-                with BaseDataset, not needed with this class.
             transform : torch.nn.Module
                 Transformations to apply to data.
             kernel_width : int
@@ -186,7 +178,7 @@ class MaskedDataset(BaseDataset):
                 Whether to use calculate masks using clean and stripe
                 sinograms. Default is False.
         """
-        super().__init__(root, mode, tvt, size, shifts, transform=transform)
+        super().__init__(root, mode, tvt, transform=transform)
         self.k = kernel_width
         self.min_width = min_width
         self.max_width = max_width

@@ -178,10 +178,6 @@ def get_args():
     parser.add_argument('-m', "--model", type=str, default='base',
                         help="Type of model to train. Must be one of ['base', "
                              "'mask', 'simple', 'patch'].")
-    parser.add_argument('-N', "--size", type=int, default=256,
-                        help="Number of sinograms per sample.")
-    parser.add_argument('-s', "--shifts", type=int, default=5,
-                        help="Number of shifts per sample.")
     parser.add_argument("--tvt", type=int, default=[3, 1, 1], nargs=3,
                         help="Train/Validate/Test split, entered as a ratio.")
     parser.add_argument('-B', "--batch-size", type=int, default=16,
@@ -208,9 +204,7 @@ if __name__ == '__main__':
     dataroot = args.root
     model_name = args.model
     model_file = args.model_file
-    size = args.size
 
-    num_shifts = args.shifts
     batch_size = args.batch_size
     tvt = args.tvt
 
@@ -253,21 +247,18 @@ if __name__ == '__main__':
     gen = BaseUNet()
     if model_name == 'base':
         # Create dataset and dataloader
-        dataset = BaseDataset(root=dataroot, mode='test', tvt=tvt, size=size,
-                              shifts=num_shifts,
+        dataset = BaseDataset(root=dataroot, mode='test', tvt=tvt,
                               transform=transform)
         model = BaseGAN(gen, disc, mode='test', device=device)
-        vis = BaseGANVisualizer(model, dataset, size, True)
+        vis = BaseGANVisualizer(model, dataset, True)
     elif model_name == 'mask' or model_name == 'simple':
-        dataset = MaskedDataset(root=dataroot, mode='test', tvt=tvt, size=size,
-                                shifts=num_shifts,
+        dataset = MaskedDataset(root=dataroot, mode='test', tvt=tvt,
                                 transform=transform,
                                 simple=model_name=='simple')
         model = MaskedGAN(gen, disc, mode='test', device=device)
-        vis = MaskedVisualizer(model, dataset, size, True)
+        vis = MaskedVisualizer(model, dataset, True)
     elif args.model == 'patch':
         dataset = MaskedDataset(root=dataroot, mode='test', tvt=tvt,
-                                size=size, shifts=num_shifts,
                                 transform=transform, simple=True)
         disc = PatchDiscriminator()
         gen = PatchUNet()
