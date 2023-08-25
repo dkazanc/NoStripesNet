@@ -87,7 +87,7 @@ def get_paired_data(tomogram, mask=None):
             real_artifact = False
         else:
             # Otherwise, stripe is current sinogram
-            clean = None  # Clean is not yet implemented
+            clean = None  # clean does not exist
             stripe = tomogram[s]
             real_artifact = True
         out[s] = real_artifact, stripe, clean
@@ -332,7 +332,7 @@ def save_chunk(chunk, root, mode, start=0, sample_no=0, shift_no=0):
             # Save sino as tiff and store path & min/max in dictionary
             minmax[stripe_path] = save_rescaled_sino(stripe, chunk_min,
                                                      chunk_max, stripe_path)
-            # clean may be all nan as it's not implemented for real artifacts
+            # clean may be all nan as it doesn't exist for real artifacts
             if not np.isnan(clean).all():
                 minmax[clean_path] = save_rescaled_sino(clean, chunk_min,
                                                         chunk_max, clean_path)

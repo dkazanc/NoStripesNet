@@ -1,8 +1,28 @@
 # Data Generation
-This document aims to explain the different methods of generating data, 
-the parameters for data generation,
-and how each parameter affects each method & the data it generates.<br>
-There are two main ways of generating data for a network: 
+This document aims to explain how to generate a dataset, the different methods of generating data, the parameters for data generation, and how each parameter affects each method & the data it generates.<br>
+
+### Contents
+- [Introduction](#introduction)
+- [Synthetic](#synthetic)
+  - [Simple](#simple)
+  - [Complex](#complex)
+- [Real-life](#real-life)
+  - [Raw](#raw)
+  - [Paired](#paired)
+  - [Dynamic](#dynamic)
+  - [Patch](#patch)
+- [Generating a Mask](#generating-a-mask)
+
+## Introduction
+A dataset is used to train, validate and test a model, as well as visualize and analyse its performance.<br>
+Data can be generated using the following command:
+```
+python -m simulator.data_generator <options here>
+```
+Alternatively, the bash script [run_scripts/data_generator.sh](../run_scripts/data_generator.sh) can be used. All parameters must be specified inside the script. The script is SLURM-compatible, and so can be ran on an HPC cluster.
+The rest of this document will explain all possible options for this script, as well as the different methods of generating a dataset.
+
+There are two main methods of generating data for a network: 
  - **Synthetic** (*simulated using TomoPhantom*)
  - **Real-life** (*loaded from an HDF5 file*)
  
@@ -14,7 +34,7 @@ There are several sub-methods within these two:
    - Raw (*saves the data as-is, with no post-processing/pair-finding*)
    - Paired (*creates input/target pairs based on artifacts in sinograms*)
    - Dynamic (*for dynamic tomography scans*)
-   - Patch (*splits sinograms into smaller patches*)
+   - Patch (*like Paired, but splits sinograms into smaller patches*)
 
 The following parameters affect *all* methods of generating data:
  - `--mode`, `-m`
@@ -39,8 +59,7 @@ The following parameters affect *all* methods of generating data:
  - `--verbose`, `-v`
    - Print out some extra information when running.
 
-More detail is given below about each method, and how the parameters in the data generation 
-script affect the data generated.
+More detail is given below about each method, and how the parameters in the data generation script affect the data generated.
 
 
 ## Synthetic
@@ -69,7 +88,7 @@ In Simple mode, artifacts are simulated using TomoPhantom's `_Artifacts_` method
 Data is stored in the following directory structure:<br>
 ```
 root
-├── <sample number>
+├── 0000
 │   ├── clean
 │   │   ├── 0000_clean_0000.tif
 │   │   │   ...
@@ -80,14 +99,12 @@ root
 │       └── 0000_stripe_0255.tif
 ...
 ```
-
-There are no extra parameters that affect Simple mode.<br>
+where `root` is the top-level directory of the dataset, `0000` is the sample number, `clean` contains clean sinograms and `stripe` contains sinograms with stripes. Each file is named like so: `<sample_number>_<clean_or_stripe>_<index>.tif`.
+<br>There are no extra parameters that affect Simple mode.<br>
 
 ### Complex
-In Complex mode, artifacts are created by simulating flat fields. Specifically, this adds more realistic noise and 
-stripes to sinograms.<br>
-Additionally, flat fields are vertically shifted (in detector Y dimension) to simulate the shifting of the sample in 
-real-life data. This means we end up with not just one clean/stripe pair, but as many pairs as there are shifts.<br>
+In Complex mode, artifacts are created by simulating flat fields. Specifically, this adds more realistic noise and stripes to sinograms.<br>
+Additionally, flat fields are vertically shifted (in detector Y dimension) to simulate the shifting of the sample in real-life data. This means we end up with not just one clean/stripe pair, but as many pairs as there are shifts.<br>
 The directory structure looks similar to that of Simple mode, but contains multiple sub-directories for each shift:<br>
 ```
 ├── 0000
@@ -136,30 +153,27 @@ The following parameters affect Complex mode:
 
 
 ## Real-life    
-It is assumed that real-life data exists in a .nxs file.<br>
-A lot of tomographic data will be too large to fit in memory all at once, and so the data generation scripts all load
-data in *chunks*, by loading only a subset of sinograms at a time.<br>
-If you are running the script on a workstation that has enough memory to load the entire tomogram at once (such as an 
-HPC cluster node), you can set chunk size to the total number of sinograms.<br>
+It is assumed that real-life data exists in a `.nxs` file.<br>
+A lot of tomographic data will be too large to fit in memory all at once, and so the data generation scripts all load data in *chunks*, by loading only a subset of sinograms at a time.<br>
+If you are running the script on a workstation that has enough memory to load the entire tomogram at once (such as an HPC cluster node), you can set chunk size to the total number of sinograms.<br>
 
 Most of the real-life data generating scripts follow these steps:
 - For each shift:
   1. For each chunk:
-      1. Load the data from the .nxs file
+      1. Load the data from the `.nxs` file
       2. Downsample sinograms to size `(402, 362)`
       3. Save this chunk to disk
   2. Once the entire shift has been saved, re-load each chunk from disk and normalise w.r.t. the entire 3D sample.
   
 The following parameters affect all sub-methods of Real-life data:
   - `--hdf-root`
-    - The .nxs file to load data from. Default is `None`.
+    - The `.nxs` file to load data from. Default is `None`.
     - This should be shift 0, e.g. `1000.nxs` in the below examples.
-    - If not specified, and mode is one of `raw`, `paired`, or `dynamic`, an error will be raised.
   - `-C`, `--chunk-size`
     - Size of chunks to load data in. Default is `243`.
     - If you have a computer with lots of memory, you can set chunk size to the full size of the dataset to load the 
     whole dataset at once.
-    - This means the data does not need to be re-loaded (i.e. step 2 above does not occur).
+    - This means the data does not need to be re-loaded (i.e. step (ii) above does not occur).
   - `--flats`
     - Path to HDF/Nexus file containing flat & dark field data to normalize with. Default is `None`.
     - If not specified, flats & darks will be loaded from `hdf-root`. If `hdf-root` contains no flats or darks, an error will be raised.
@@ -190,65 +204,56 @@ root
 The following parameters affect Raw mode:
   - `--shifts`, `-s`
     - The number of vertical shifts when sample was scanned. Default is `5`.
-    - Each shift is stored under its own sub-directory.
-    - Assumes shifts are each stored under a different .nxs file, with the name incrementing by one for each shift.
+    - Each shift is saved under its own sub-directory.
+    - Assumes shifts are each stored under a different `.nxs` file, with the name incrementing by one for each shift.
     - For example, if shift 0 was in `1000.nxs`, shift 1 will be in `1001.nxs`, shift 2 in `1002.nxs`, etc.
   - `--shiftstep`, `-p`
     - The step in pixels between each shift. Default is `2`.
 
 ### Paired
 This method creates input/target (or stripe/clean) pairs based on whether sinograms from the data contain stripes.<br>
-It calculates a binary mask indicating the locations of stripes, then based on this mask determines whether a sinogram
-has a stripe in or not.<br>
-If it doesn't have a stripe, stripes are added synthetically using TomoPhantoms `stripe` method.<br>
-If it does have a stripe, a 'clean' image is created by combining the parts of different shifts that don't contain 
-stripes.<br>
-> N.B. combining different shifts to get a clean image is not implemented in the current version of this method.
-> The current method assumes the 'clean' images have already been generated using the old function [getCleanStripe](../simulator/realdata_loader.py).
-> This is not useful and is therefore likely to be changed in a future version.<br>
+Naturally, real-life tomographic data will contain real-life stripe artifacts. However, we cannot use these artifacts to train a model, as we have no clean images to compare them to.<br>
+This limits the dataset to only include sinograms that *don't* have any artifacts in them. We use a binary mask to determine whether a sinogram contains stripes, save these sinograms as "clean", and then simulate artifacts on each to get a corresponding "stripe" image. These clean/stripe pairs are stored under a subdirectory called `fake_artifacts`.<br>
+Rather than completely discarding sinograms containing artifacts, we store them in a separate subdirectory `real_artifacts`, so at the very least a visual analysis can still be performed.<br>
 
-The sinograms with and without stripes are saved to disk as a stripe/clean pair.<br>
-However, depending on whether the raw sinogram contained stripes, the sub-directory under which each pair is stored is different.<br>
-- If the raw sinogram *didn't* contain a stripe, the pair is stored under `root/fake_artifacts`.<br>
-- If the raw sinogram *did* contain a stripe, the pair is stored under `root/real_artifacts`.<br>
-
-And so, this method stores data in the following directory structure:<br>
+Therefore, this method stores data in the following directory structure:<br>
 ```
 root
-├── fake_artifacts
-│   ├── clean
-│   │   ├── 0000_shift00_0000.tif
-│   │   │   ...
-│   │   ├── 0000_shift00_2159.tif
-│   │   ├── 0000_shift01_0000.tif
-│   │   │   ...
-│   │   ├── 0000_shift01_2159.tif
-│   │   ...
-│   └── stripe
-│       ├── 0000_shift00_0000.tif
-│       │   ...
-│       ├── 0000_shift00_2159.tif
-│       ├── 0000_shift01_0000.tif
-│       │   ...
-│       ├── 0000_shift01_2159.tif
-│       ...
-└── real_artifacts
-    ├── clean
-    │   ├── 0000_shift00_0255.tif
-    │   │   ...
-    │   ├── 0000_shift00_1815.tif
-    │   ├── 0000_shift01_0255.tif
-    │   │   ...
-    │   ├── 0000_shift01_1815.tif
-    │   ...
-    └── stripe
-        ├── 0000_shift00_0255.tif
-        │   ...
-        ├── 0000_shift00_1815.tif
-        ├── 0000_shift01_0255.tif
-        │   ...
-        ├── 0000_shift01_1815.tif
-        ...
+└── 0000
+    ├── fake_artifacts
+    │   ├── clean
+    │   │   ├── 0000_shift00_0000.tif
+    │   │   │   ...
+    │   │   ├── 0000_shift00_2159.tif
+    │   │   ├── 0000_shift01_0000.tif
+    │   │   │   ...
+    │   │   ├── 0000_shift01_2159.tif
+    │   │   ...
+    │   └── stripe
+    │       ├── 0000_shift00_0000.tif
+    │       │   ...
+    │       ├── 0000_shift00_2159.tif
+    │       ├── 0000_shift01_0000.tif
+    │       │   ...
+    │       ├── 0000_shift01_2159.tif
+    │       ...
+    └── real_artifacts
+        ├── clean
+        │   ├── 0000_shift00_0255.tif
+        │   │   ...
+        │   ├── 0000_shift00_1815.tif
+        │   ├── 0000_shift01_0255.tif
+        │   │   ...
+        │   ├── 0000_shift01_1815.tif
+        │   ...
+        └── stripe
+            ├── 0000_shift00_0255.tif
+            │   ...
+            ├── 0000_shift00_1815.tif
+            ├── 0000_shift01_0255.tif
+            │   ...
+            ├── 0000_shift01_1815.tif
+            ...
 ```
 Due to the nature of the pair-creation algorithm, any sinogram in `root/fake_artifacts` cannot also exist in `root/real_artifacts`.<br>
 Additionally, there are no shift sub-directories; all shifts are stored under one directory.<br>
@@ -257,13 +262,13 @@ The following parameters affect Paired mode:
   - `--shifts`, `-s`
     - The number of vertical shifts when sample was scanned. Default is `5`.
     - All shifts are stored under the same directory.
-    - Assumes shifts are each stored under a different .nxs file, with the name incrementing by one for each shift.
+    - Assumes shifts are each stored under a different `.nxs` file, with the name incrementing by one for each shift.
     - For example, if shift 0 was in `1000.nxs`, shift 1 will be in `1001.nxs`, shift 2 in `1002.nxs`, etc.
   - `--shiftstep`, `-p`
     - The step in pixels between each shift. Default is `2`.
   - `--mask`
-    - The path to the mask containing locations of stripes. Default is `None`.
-    - This should be a numpy file `.npy`, generated using the stripe detection method in Larix.
+    - The path to the `.npz` archive containing the stripe location mask. Default is `None`.
+    - The filename of the mask within the archive should be `m<hdf-root>`. For example, for `1000.nxs` the mask must be stored under the name `m1000`.
     - If not given, a mask will be generated at runtime. However, this can take multiple hours. 
 
 ### Dynamic
@@ -294,27 +299,28 @@ The following parameters affect Dynamic mode:<br>
     - Default is `900`.
 
 ### Patch
-This method is the same as Paired, but split sinograms into patches of a given size.<br>
+This method is the same as Paired, but splits sinograms into patches of a given size.<br>
 Therefore, no downsampling is applied to sinograms.<br>
 
 This method stores data in the following directory structure:<br>
 ```
 root
-├── fake_artifacts
-│   ├── clean
-│   │   ├── 0000_shift00_0000_w00.tif
-│   │   ├── 0000_shift00_0000_w01.tif
-│   │   ├── 0000_shift00_0000_w02.tif
-│   │   │   ...
-│   │   ├── 0000_shift00_0001_w00.tif
-│   │   │   ...
-│   │   ├── 0000_shift01_0000_w00.tif
-│   │   │   ...
-│   │   ...
-│   └── stripe
-└── real_artifacts
-    ├── clean
-    └── stripe
+└── 0000
+    ├── fake_artifacts
+    │   ├── clean
+    │   │   ├── 0000_shift00_0000_w00.tif
+    │   │   ├── 0000_shift00_0000_w01.tif
+    │   │   ├── 0000_shift00_0000_w02.tif
+    │   │   │   ...
+    │   │   ├── 0000_shift00_0001_w00.tif
+    │   │   │   ...
+    │   │   ├── 0000_shift01_0000_w00.tif
+    │   │   │   ...
+    │   │   ...
+    │   └── stripe
+    └── real_artifacts
+        ├── clean
+        └── stripe
 ```
 It is the same as Paired mode, but for each sinogram there is a series of patches `w00`, `w01`, `w02`, ...<br>
 
@@ -322,12 +328,41 @@ The following parameters affect Patch mode:<br>
   - `--shifts`, `-s`
     - The number of vertical shifts when sample was scanned. Default is `5`.
     - All shifts are stored under the same directory.
-    - Assumes shifts are each stored under a different .nxs file, with the name incrementing by one for each shift.
+    - Assumes shifts are each stored under a different `.nxs` file, with the name incrementing by one for each shift.
     - For example, if shift 0 was in `1000.nxs`, shift 1 will be in `1001.nxs`, shift 2 in `1002.nxs`, etc.
   - `--mask`
-    - The path to the mask containing locations of stripes. Default is `None`.
-    - This should be a numpy file `.npy`, generated using the stripe detection method in Larix.
+    - The path to the `.npz` archive containing the stripe location mask. Default is `None`.
+    - The filename of the mask within the archive should be `m<hdf-root>`. For example, for `1000.nxs` the mask must be stored under the name `m1000`.
     - If not given, a mask will be generated at runtime. However, this can take multiple hours.
   - `--patch-size`
-    - The size of patches to split sinograms into. Must be a tuple. Default is `(1801, 256)`.
+    - The size of patches to split sinograms into. Must be a tuple. Default is `1801 256`.
     - If the sinogram does not evenly go into patches of size `patch-size`, the sinogram will be cropped.
+
+
+## Generating a Mask
+Two of the above modes (Paired and Patch) both require binary masks indicating the locations of stripes within a tomogram. This sub-section details how to generate such a mask.<br>
+
+The stripe detection algorithm used is from Larix, a combination of `larix.methods.misc.STRIPES_DETECT` and `larix.methods.misc.STRIPES_MERGE`.<br>
+The mask generated is stored in a compressed Numpy zip archive `.npz`. There are multiple mask files stored in one archive. For example, `/dls/i12/data/2022/nt33730-1/processing/NoStripesNet/stripe_masks.npz` contains the stripe masks for lots of different samples.<br>
+In order for dataset creation to run correctly, the `.npz` archive must be in the correct format. Each file in the archive must be named `m<hdf_name>`, where `<hdf_name>` is the name of the hdf file containing the tomographic data used to generate the mask.<br>
+For example, if you were generating a a mask from `119617.nxs`, the mask file (within the archive) should be named `m119617`.<br>
+
+The command below can be used to generate a mask:
+```shell script
+python -m simulator.generate_mask
+```
+It takes the following arguments:
+ - `--h5`
+   - The hdf file used to detect stripes and generate a mask.
+ - `--flats`
+   - An hdf file that contains flats and darks to normalise `--h5` with.
+   - If `--h5` already contains flats and darks, this argument can be left out.
+ - `-a`, `--archive`
+   - The path to the `.npz` archive.
+   - If it does not exist, it will be created.
+   - If it does exist, a new file will be created within the archive.
+ - `-f`, `--file-name`
+   - The name of the file within the archive.
+   - As stated above, this should be `m<hdf_name>`.
+   
+Alternatively, the bash script [run_scripts/generate_mask.sh](../run_scripts/generate_mask.sh) can be used to generate masks. This is SLURM-compatible, so can be ran on an HPC cluster. Arguments must be specified inside the script.
