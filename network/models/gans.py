@@ -336,8 +336,8 @@ class MaskedGAN(BaseGAN):
             b : torch.Tensor
                 Generator Target Image
         """
-        self.realA = a[:, 0].unsqueeze(dim=1).to(self.device)
-        self.mask = a[:, 1].unsqueeze(dim=1).type(torch.bool).to(self.device)
+        self.realA = a[..., 0, :, :].unsqueeze(dim=1).to(self.device)
+        self.mask = a[..., 1, :, :].unsqueeze(dim=1).type(torch.bool).to(self.device)
         self.realB = b.to(self.device)
 
     def forward(self):

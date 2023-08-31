@@ -5,9 +5,9 @@
 #SBATCH --partition=cs05r
 #SBATCH --job-name=nsn
 
-h5='/dls/i12/data/2022/nt33730-1/rawdata/119647.nxs'
-archive='/dls/i12/data/2022/nt33730-1/processing/NoStripesNet/stripe_masks.npz'
-file='m119647'
+h5='/path/to/h5_files/<file_name>.h5'
+archive='/path/to/archive.npz'
+file='m<file_name>'
 
 echo "Loading environment..."
 module load python

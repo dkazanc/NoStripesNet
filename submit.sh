@@ -1,4 +1,5 @@
-#!/bin/sh
+#!/bin/bash
+
 #SBATCH --job-name=nsn
 #SBATCH --output=training.out
 #SBATCH --error=training.err

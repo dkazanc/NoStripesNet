@@ -1,4 +1,5 @@
 #!/bin/bash
+
 #SBATCH --job-name=nsn
 #SBATCH --output=train_test.out
 #SBATCH --error=train_test.err
