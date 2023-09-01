@@ -7,7 +7,7 @@ The network can train on both synthetic and real-life data.<br>
 ### Requirements
  - A Linux machine with a GPU and CUDA
  - Conda
- - Python 3.9
+ - Python 3.9+
  - PyTorch
  - TomoPy
 
@@ -20,31 +20,21 @@ First, set up the project environment:
  - Create the conda environment: `conda env create -f environment.yml`
  - Activate the conda environment: `conda activate nostripesnet`
  
-#### Generate Data
-Next, generate some data to train/test on.<br>
-If you have access to an HDF5 or Nexus file, you can generate a dataset from real-life data.<br>
-Otherwise, you are limited to just synthetic data.<br>
- - Open the data generation script in a text editor: [run_scripts/data_generator.sh](run_scripts/data_generator.sh)
- - Change the parameters to suit your use case
- - Run the script: `./run_scripts/data_generator.sh`
 
-For more information about the data created & the parameters, see [this description](simulator/README.md).
+### The Repository
+- `network/` contains Python code to train and test a model, as well as the dataset and visualiser classes.
+- `run_scripts/` contains bash scripts to generate masks & datasets and train/test models.
+- `simulator` contains Python code to generate masks & datasets.
+- `utils/` - contains utility functions used throughout the codebase.
+- `TUTORIAL.md` is a walkthrough of how to generate a dataset, and train & apply a model.
+- `apply_model.py` is a program that applies a model to a given tomographic scan.
+- `graphs.ipynb` is a Jupyter Notebook used to create the graphs in the paper.
+- `residuals.ipynb` is a Jupyter Notebook used to create the residual images in the paper.
+- `rmse.ipynb` is a Jupyter Notebook used to calculate the RMSEs in the paper.
+- `submit.sh` is a bash script to train a model on multiple nodes, using multiple GPUs on each.
+- `visualize_results.ipynb` is a Jupyter Notebook used to visualize the results of a model.  
+ 
 
-#### Train a Model
-Finally, train a model on the generated data.<br>
-Run the following to see information about the options you can specify:<br>
-`python -m network.training -h`<br>
-Then choose the values of the options you want to specify, and run the same command again (without `-h`).<br>
-For example, if training a masked model, you might run something like this:<br>
-`python -m network.training --model mask --epochs 10 --save-dir ./data --verbose`<br>
-
-Follow the same procedure for testing:<br>
-`python -m network.testing -h`<br>
-Choose your parameters, then run again with those options.<br>
-
-If you want to both train and test a model all at once, follow these steps:<br>
- - Open the [train/test script](run_scripts/train_test.sh) in a text editor
- - Specify the values of the parameters you want to train & test with
- - Run the script: `./run_scripts/train_test.sh`
-
-A graph of the training losses will be saved to `NoStripesNet/images`.<br>
+### Running the Code
+A full walkthrough of how to generate a dataset and train a model can be found [here](./TUTORIAL.md).<br>
+To apply a trained model to a tomographic scan, see [run_scripts/apply_model.sh](./run_scripts/apply_model.sh).
