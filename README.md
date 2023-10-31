@@ -3,6 +3,8 @@
 A neural network to remove stripe artifacts in sinograms.<br>
 The network takes a sinogram with stripes as input, and learns to remove those stripes from it.<br>
 The network can train on both synthetic and real-life data.<br>
+    ![Compared inpainters with GAN](images/inpainters_compared.png)
+    ![Reconstructions](images/zoomed_real_stripes_recons.jpg)
 
 ### Requirements
  - A Linux machine with a GPU and CUDA
